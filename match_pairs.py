@@ -50,7 +50,8 @@ import random
 import numpy as np
 import matplotlib.cm as cm
 import torch
-
+import glob
+import os
 
 from models.matching import Matching
 from models.utils import (compute_pose_error, compute_epipolar_error,
@@ -63,18 +64,72 @@ torch.set_grad_enabled(False)
 
 
 if __name__ == '__main__':
+
+    ########## ADDED THIS TO CREATE PAIRS
+    
+    project_path = Path(__file__).parent.resolve()
+
+    phantom_take = 'surface'
+
+    input_dir = f'assets/phantom/{phantom_take}/images'
+    pairs_info = f'assets/phantom_{phantom_take}_pairs.txt'
+    output_dir = f'outputs/match_pairs_{phantom_take}/'
+
+    #frames_paths = sorted(glob.glob(f'{project_path}/{input_dir}/*.jpg'))
+    
+    
+
+
+    # path of image sequence
+    #vid_paths = sorted(glob.glob(f'{project_path}/assets/endo_sequence/seq_1/*.*'))
+    #images_path = f'{project_path}/assets/phantom/surface/images'
+    #vid_paths = sorted(glob.glob(f'{images_path}/*.*'))
+    frames_paths = sorted(glob.glob(f'{project_path}/{input_dir}/*.*'))
+
+    # RENAMING TO 8 NUMBER FORMAT 
+    if len(frames_paths[0].split('/')[-1])<11:
+        print('changing file names')
+        for idx in range(0,len(frames_paths)):
+            old_pth = frames_paths[idx] 
+            frame_num = int(old_pth.split('/')[-1].split('.')[0]) # name of file then number of frame
+            # Absolute path of a file
+            #old_name = r"E:\demos\files\reports\details.txt"
+            new_pth = '{}/{}/{:08d}.png'.format(project_path,input_dir, frame_num)
+
+            # Renaming the file
+            os.rename(old_pth, new_pth)
+    
+        frames_paths = sorted(glob.glob(f'{project_path}/{input_dir}/*.*'))
+        #f = open("assets/endo_pairs.txt","w+")
+        f = open(pairs_info,"w+")
+        for idx in range(0,len(frames_paths)-1):
+            pth_1 = frames_paths[idx].split('/')[-1]
+            pth_2 = frames_paths[idx+1].split('/')[-1]
+
+            str = f'{pth_1} {pth_2} 0 0'
+            f.write(str)
+            f.write('\n')
+        
+        f.close()
+    
+    ############################################################################
     parser = argparse.ArgumentParser(
         description='Image pair matching and pose evaluation with SuperGlue',
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
+
     parser.add_argument(
-        '--input_pairs', type=str, default='assets/scannet_sample_pairs_with_gt.txt',
+        '--input_pairs', type=str, 
+        #default='assets/scannet_sample_pairs_with_gt.txt',
+        default=pairs_info,
         help='Path to the list of image pairs')
     parser.add_argument(
-        '--input_dir', type=str, default='assets/scannet_sample_images/',
+        '--input_dir', type=str, 
+        #default='assets/scannet_sample_images/',
+        default=input_dir,
         help='Path to the directory that contains the images')
     parser.add_argument(
-        '--output_dir', type=str, default='dump_match_pairs/',
+        '--output_dir', type=str, default=output_dir,
         help='Path to the directory in which the .npz results and optionally,'
              'the visualization images are written')
 
@@ -82,7 +137,7 @@ if __name__ == '__main__':
         '--max_length', type=int, default=-1,
         help='Maximum number of pairs to evaluate')
     parser.add_argument(
-        '--resize', type=int, nargs='+', default=[640, 480],
+        '--resize', type=int, nargs='+', default=[640, 480], # [640, 480],
         help='Resize the input image before running inference. If two numbers, '
              'resize to the exact dimensions, if one number, resize the max '
              'dimension, if -1, do not resize')
@@ -108,18 +163,18 @@ if __name__ == '__main__':
         '--sinkhorn_iterations', type=int, default=20,
         help='Number of Sinkhorn iterations performed by SuperGlue')
     parser.add_argument(
-        '--match_threshold', type=float, default=0.2,
+        '--match_threshold', type=float, default=0.9,
         help='SuperGlue match threshold')
 
     parser.add_argument(
-        '--viz', action='store_true',
+        '--viz', action='store_true',default=True,
         help='Visualize the matches and dump the plots')
     parser.add_argument(
         '--eval', action='store_true',
         help='Perform the evaluation'
              ' (requires ground truth pose and intrinsics)')
     parser.add_argument(
-        '--fast_viz', action='store_true',
+        '--fast_viz', action='store_true',default=True,
         help='Use faster image visualization with OpenCV instead of Matplotlib')
     parser.add_argument(
         '--cache', action='store_true',
@@ -131,7 +186,7 @@ if __name__ == '__main__':
         '--viz_extension', type=str, default='png', choices=['png', 'pdf'],
         help='Visualization file extension. Use pdf for highest-quality.')
     parser.add_argument(
-        '--opencv_display', action='store_true',
+        '--opencv_display', action='store_true', default=True,
         help='Visualize via OpenCV before saving output images')
     parser.add_argument(
         '--shuffle', action='store_true',
