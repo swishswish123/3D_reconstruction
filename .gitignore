@@ -2,7 +2,10 @@
 *.DS_Store
 *.swp
 .idea/
+assets/
 dump_*/
 outputs/
 pairs/
 __pycache__/
+calibration/
+reconstructions/

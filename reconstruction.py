@@ -409,6 +409,59 @@ def method_3( kp1_matched, kp2_matched, K):
     return pts3D
 
 
+
+
+def get_matched_keypoints_superglue(pair_match):
+    # MATCHES info of the two images
+    npz = np.load( pair_match )
+
+    kp1 = npz['keypoints0'] # keypoints in first image
+    kp2 = npz['keypoints1'] # keypoints in second image
+    matches = npz['matches'] # matches- for each point in kp1, finds match in kp2. If -1-> no match
+
+    # selecting in order the indeces of the matching points
+    kp1_matched =  kp1[matches>-1] # selecting all indeces that are matches in im1
+    kp2_matched =  kp2[matches[matches>-1]] # selecting points whose indeces are matches in sim2        
+    return kp1_matched, kp2_matched
+
+def get_matched_keypoints_sift(img1_original, img2_original):
+
+    # Initiate SIFT detector
+    sift = cv2.SIFT_create()
+
+    # convert 2 images to gray
+    img1 = cv2.cvtColor(img1_original, cv2.COLOR_BGR2GRAY)
+    img2 = cv2.cvtColor(img2_original, cv2.COLOR_BGR2GRAY)
+    
+    # find the keypoints and descriptors with SIFT
+    kp1, des1 = sift.detectAndCompute(img1,None)
+    kp2, des2 = sift.detectAndCompute(img2,None)
+
+    #feature matching
+    bf = cv2.BFMatcher()
+    matches = bf.knnMatch(des1,des2,k=2)
+
+    # Apply ratio test
+    good_kp1_matched = []
+    good_kp2_matched = []
+    good = []
+    for m,n in matches:
+        if m.distance < 0.75*n.distance:
+            good.append(m)
+            # https://stackoverflow.com/questions/30716610/how-to-get-pixel-coordinates-from-feature-matching-in-opencv-python
+            # extracting indexes of matched idx from images
+            img1_idx = m.queryIdx
+            img2_idx = m.trainIdx
+            good_kp1_matched.append(kp1[img1_idx].pt)
+            good_kp2_matched.append(kp2[img2_idx].pt)
+
+    # converting to np array
+    kp1_matched =  np.asarray(good_kp1_matched) # selecting all indeces that are matches in im1
+    kp2_matched =  np.asarray(good_kp2_matched) # selecting points whose indeces are matches in sim2        
+    
+    return kp1_matched, kp2_matched
+        
+
 if __name__=='__main__':
 
     ########################## PARAMS ###################################
@@ -426,13 +479,15 @@ if __name__=='__main__':
     intrinsics = np.loadtxt(f'calibration/mac_calibration/intrinsics.txt')
     distortion = np.loadtxt(f'calibration/mac_calibration/distortion.txt')
     
-    matching_method = 'superglue' # sift / superglue
+    matching_method = 'sift' # sift / superglue
 
     ######################## PERFORMING SUPERGLUE MATCHING ########################################
     if matching_method == 'superglue':
-        match_pairs.superglue(type, folder, frame_rate=1)
+        match_pairs.superglue(type, folder, frame_rate=frame_rate)
         # path where all match pairs located (SUPERGLUE)
         output_dir = f'outputs/match_pairs_{type}_{folder}/'
+        # matches
+        match_paths = glob.glob(f'{project_path}/{output_dir}/*.npz')
 
     ########################## LOADING ALL ###################################
     
@@ -447,8 +502,6 @@ if __name__=='__main__':
         poses = np.load(f'{camera_info}/vecs.npy')
         # timestamps
         times = np.load(f'{camera_info}/times.npy')
-        # matches
-        match_paths = glob.glob(f'{project_path}/{output_dir}/*.npz')
         # calibration data
         hand_eye = np.load(f'calibration/endoscope_calibration/h2e.npy')
 
@@ -469,39 +522,27 @@ if __name__=='__main__':
         im1_path = frames_pth[idx]
         im2_path = frames_pth[idx+frame_rate]
 
-        
         # image number (eg. 00000001)- excluding extension
         im1 = im1_path.split('/')[-1][:-4]
         im2 = im2_path.split('/')[-1][:-4]
-        
+        # loading images    
         img1_original = cv2.imread(im1_path)  
         img2_original = cv2.imread(im2_path) 
-
-        # MATCHES info of the two images
-        npz = np.load( f'{project_path}/{output_dir}/{im1}_{im2}_matches.npz' )
-
-        kp1 = npz['keypoints0'] # keypoints in first image
-        kp2 = npz['keypoints1'] # keypoints in second image
-        matches = npz['matches'] # matches- for each point in kp1, finds match in kp2. If -1-> no match
- 
-        # selecting in order the indeces of the matching points
-        kp1_matched =  kp1[matches>-1] # selecting all indeces that are matches in im1
-        kp2_matched =  kp2[matches[matches>-1]] # selecting points whose indeces are matches in sim2        
-
-        #str = f'{pth_1} {pth_2} 0 0'
-        #f.write(str)
-        #f.write('\n')
+        
+        ############################### MATCHING ##########################
+        # obtaining or loading keypoints between images 
+        if matching_method == 'superglue':
+            kp1_matched, kp2_matched = get_matched_keypoints_superglue(f'{project_path}/{output_dir}/{im1}_{im2}_matches.npz')
+        elif matching_method == 'sift':
+            kp1_matched, kp2_matched = get_matched_keypoints_sift(img1_original, img2_original)
+        
+        ############################ IMAGE POSES ################################
         if TRACKING:
-            # LOAD CURRENT 2 IMAGES AND POSES- perform hand_eye
-            # poses
+            # loading poses information of current img pairs
             im1_poses =  poses[idx]  #@ original_point 
             im2_poses =  poses[idx+1] #@ unit_vec
 
-        #image_1 = PIL.Image.open(im1_path)
-        #image_2 = PIL.Image.open(im2_path)
-        image_1 = read_img(im1_path)
-        image_2 = read_img(im2_path)
-        imageSize = image_1.shape
+        imageSize = img1_original.shape
 
         # get color of scatter
         input_undistorted_points = np.concatenate([kp1_matched,kp2_matched],axis=1)
@@ -509,11 +550,9 @@ if __name__=='__main__':
         D3_colors = img1_original[ input_undistorted_points[:,1],input_undistorted_points[:,0]]
         
         if method=='stereo':
-            frame_1, frame_2 = stereo_rectify_method(image_1, image_2, im1_poses, im2_poses,intrinsics, distortion, imageSize)
-            #cv2.imshow('1', frame_1)
-            #cv2.imshow('2', frame_2)
+            frame_1, frame_2 = stereo_rectify_method(img1_original, img2_original, im1_poses, im2_poses,intrinsics, distortion, imageSize)
         elif method=='prince':
-            D3_points, D3_colors = get_xyz_method_prince(intrinsics,hand_eye, np.array(image_1), kp1_matched, im1_poses,np.array(image_2), kp2_matched, im2_poses)
+            D3_points, D3_colors = get_xyz_method_prince(intrinsics,hand_eye, np.array(img1_original), kp1_matched, im1_poses,np.array(img2_original), kp2_matched, im2_poses)
             D3_points_all += D3_points
             D3_colors_all += D3_colors
         elif method == 'gpt':
@@ -531,9 +570,6 @@ if __name__=='__main__':
                         D3_points_all += np.ndarray.tolist(D3_points.squeeze())
                     else:
                         D3_points_all += np.ndarray.tolist(D3_points)
-                    # selecting colors from first image
-                    #image = np.array(image_1)
-                    
                     D3_colors_all += np.ndarray.tolist(D3_colors)
             else:   
                 print('no F matrix found') 
@@ -545,11 +581,6 @@ if __name__=='__main__':
                     D3_points_all += np.ndarray.tolist(D3_points.squeeze())
                 else:
                     D3_points_all += np.ndarray.tolist(D3_points)
-                # selecting colors from first image
-                #image = np.array(image_1)
-                input_undistorted_points = np.concatenate([kp1_matched,kp2_matched],axis=1)
-                input_undistorted_points=input_undistorted_points.astype(int) # converting to integer
-                D3_colors = img1_original[ input_undistorted_points[:,1],input_undistorted_points[:,0]]
                 D3_colors_all += np.ndarray.tolist(D3_colors)
             else:   
                 print('no F matrix found') 
@@ -572,10 +603,6 @@ if __name__=='__main__':
             '''
             ###### RECTIFY HERE
 
-
-            input_undistorted_points = np.concatenate([kp1_matched,kp2_matched],axis=1)
-            input_undistorted_points=input_undistorted_points.astype(int) # converting to integer
-            
             if np.size(kp1_matched)==0:
                 print('no matches')
             else:
@@ -583,23 +610,17 @@ if __name__=='__main__':
 
                 #D3_points = triangulate_points_opencv(input_undistorted_points, intrinsics, intrinsics, R, T)
                 D3_points_all += np.ndarray.tolist(D3_points)
-                # selecting colors from first image
-                #image = np.array(image_1)
-                D3_colors = image_1[ input_undistorted_points[:,1],input_undistorted_points[:,0]]
                 D3_colors_all += np.ndarray.tolist(D3_colors)
         elif method=='online':
 
             D3_points = get_xyz(kp1_matched, intrinsics, im1_poses[:3,:3], im1_poses[:3,3:], kp2_matched, intrinsics, im2_poses[:3,:3], im2_poses[:3,3:])
             D3_points_all += D3_points
             # selecting colors from first image
-            input_undistorted_points = np.concatenate([kp1_matched,kp2_matched],axis=1)
-            input_undistorted_points=input_undistorted_points.astype(int)
-            image = np.array(image_1)
-            D3_colors = image[input_undistorted_points[:,1],input_undistorted_points[:,0]]
             D3_colors_all += np.ndarray.tolist(D3_colors)
         if cv2.waitKey(1) & 0xFF==ord('q'):
             break
 
+        '''
         if plot_output:
             image1 = read_img(im1_path)
             image2 = read_img(im2_path)
@@ -610,7 +631,7 @@ if __name__=='__main__':
             plot_matches(kp1_matched, kp2_matched, color=cm.jet(mconf[matches>-1]))
             #plt.savefig(str(f'{reconstruction_output}/pairs/{im1}_{im2}_matches.png'), bbox_inches='tight', pad_inches=0)
             plt.savefig('matches.png', bbox_inches='tight', pad_inches=0)
-
+        '''
     all_points = np.asarray(D3_points_all)
     all_colors = np.asarray(D3_colors_all)
     
