@@ -1,9 +1,5 @@
 import open3d as o3d
 import numpy as np
-import matplotlib.pyplot as plt
-import plotly.express as px
-import pandas as pd 
-import plotly.graph_objs as go
 from pathlib import Path
 
 

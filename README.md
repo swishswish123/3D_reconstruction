@@ -1,5 +1,3 @@
-<img src="assets/magicleap.png" width="240">
-
 ### 3D reconstruction with feature matching
 
 ## Dependencies
@@ -13,8 +11,12 @@ see requirements.txt
 
 `pip3 install numpy opencv-python torch matplotlib`
 
+* scikit-surgerycore
 * scipy
-(* open3d)
+* pandas
+* plotly
+* (open3d) -> only needed if you want to visualize with open3D
+(open3d 0.15.1)
 
 ## Keypoints and feature matching
 If using superpoint and superglue for feature matching follow the following instructions:
@@ -22,8 +24,10 @@ If using superpoint and superglue for feature matching follow the following inst
 ### Superpoint & superlue
 * Website: [psarlin.com/superglue](https://psarlin.com/superglue) for videos, slides, recent updates, and more visualizations.
 
-`match_pairs.py`: reads image pairs and creates matches stored in 'outputs' folder
+Run `match_pairs.py` to get the matches- this will appear under 'outputs' folder
 
+## Visualising 3D reconstruction
 
+`plot_reconstruction.py`
 
 
