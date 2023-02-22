@@ -63,12 +63,6 @@ from models.utils import (compute_pose_error, compute_epipolar_error,
 torch.set_grad_enabled(False)
 
 
-
-def superglue(pairs_info, ):
-
-    return
-
-
 class DictX(dict):
     def __getattr__(self, key):
         try:
@@ -79,21 +73,10 @@ class DictX(dict):
     def __setattr__(self, key, value):
         self[key] = value
 
-if __name__ == '__main__':
 
-    ########## ADDED THIS TO CREATE PAIRS
-    
-    ########################## PARAMS ###################################
-    # folder of type of video
-    # random / phantom / EM_tracker_calib
-    type='random' # phantom / random / EM_tracker_calib
-    # RANDOM, UNDISTORTED: arrow / brain  / checkerboard_test_calibrated / gloves / 
-    # RANDOM, Distorted: books / points / spinal_section / spinal_section_pink
-    # EM_TRACKING_CALIB testing_points /testing_lines
-    # RANDOM, UNDISTORTED WITH MAC: mac_camera
-    folder = 'mac_camera' 
-    frame_rate = 1
 
+
+def load_data(type, folder, frame_rate=1):
     ########################## LOADING ALL ###################################
     project_path = Path(__file__).parent.resolve()
     # where image frames are
@@ -156,7 +139,7 @@ if __name__ == '__main__':
         'viz':True,# Visualize the matches and dump the plots
         'eval':False ,#Perform the evaluation' (requires ground truth pose and intrinsics)
         'fast_viz':True,#'Use faster image visualization with OpenCV instead of Matplotlib'
-        'cache':False, # 'Skip the pair if output .npz files are already found'
+        'cache':True, # 'Skip the pair if output .npz files are already found'
         'show_keypoints':False, # 'Plot the keypoints in addition to the matches'
         'viz_extension':'png', # Visualization file extension. Use pdf for highest-quality.
                                 # choices=['png', 'pdf']
@@ -165,95 +148,12 @@ if __name__ == '__main__':
         'force_cpu':True # 'Force pytorch to run in CPU mode.'
     }
     opt = DictX(opt)
-    ### ALL CODE BELOW IS ORIGINAL MAGICLEAP SUPERGLUE CODE ###################
-    ############################################################################
-    '''
-    parser = argparse.ArgumentParser(
-        description='Image pair matching and pose evaluation with SuperGlue',
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
+    return opt
 
-    parser.add_argument(
-        '--input_pairs', type=str, 
-        #default='assets/scannet_sample_pairs_with_gt.txt',
-        default=Path(pairs_info),
-        help='Path to the list of image pairs')
-    parser.add_argument(
-        '--input_dir', type=str, 
-        #default='assets/scannet_sample_images/',
-        default=input_dir,
-        help='Path to the directory that contains the images')
-    parser.add_argument(
-        '--output_dir', type=str, default=output_dir,
-        help='Path to the directory in which the .npz results and optionally,'
-             'the visualization images are written')
+def superglue(type, folder, frame_rate=1):
 
-    parser.add_argument(
-        '--max_length', type=int, default=-1,
-        help='Maximum number of pairs to evaluate')
-    parser.add_argument(
-        '--resize', type=int, nargs='+', default=[-1], # [640, 480],
-        help='Resize the input image before running inference. If two numbers, '
-             'resize to the exact dimensions, if one number, resize the max '
-             'dimension, if [-1], do not resize')
-    parser.add_argument(
-        '--resize_float', action='store_true',
-        help='Resize the image after casting uint8 to float')
-
-    parser.add_argument(
-        '--superglue', choices={'indoor', 'outdoor'}, default='indoor',
-        help='SuperGlue weights')
-    parser.add_argument(
-        '--max_keypoints', type=int, default=1024,
-        help='Maximum number of keypoints detected by Superpoint'
-             ' (\'-1\' keeps all keypoints)')
-    parser.add_argument(
-        '--keypoint_threshold', type=float, default=0.005,
-        help='SuperPoint keypoint detector confidence threshold')
-    parser.add_argument(
-        '--nms_radius', type=int, default=4,
-        help='SuperPoint Non Maximum Suppression (NMS) radius'
-        ' (Must be positive)')
-    parser.add_argument(
-        '--sinkhorn_iterations', type=int, default=20,
-        help='Number of Sinkhorn iterations performed by SuperGlue')
-    parser.add_argument(
-        '--match_threshold', type=float, default=0.9,
-        help='SuperGlue match threshold')
-
-    parser.add_argument(
-        '--viz', action='store_true',default=True,
-        help='Visualize the matches and dump the plots')
-    parser.add_argument(
-        '--eval', action='store_true',
-        help='Perform the evaluation'
-             ' (requires ground truth pose and intrinsics)')
-    parser.add_argument(
-        '--fast_viz', action='store_true',default=True,
-        help='Use faster image visualization with OpenCV instead of Matplotlib')
-    parser.add_argument(
-        '--cache', action='store_true',
-        help='Skip the pair if output .npz files are already found')
-    parser.add_argument(
-        '--show_keypoints', action='store_true',
-        help='Plot the keypoints in addition to the matches')
-    parser.add_argument(
-        '--viz_extension', type=str, default='png', choices=['png', 'pdf'],
-        help='Visualization file extension. Use pdf for highest-quality.')
-    parser.add_argument(
-        '--opencv_display', action='store_true', default=True,
-        help='Visualize via OpenCV before saving output images')
-    parser.add_argument(
-        '--shuffle', action='store_true',
-        help='Shuffle ordering of pairs before processing')
-    parser.add_argument(
-        '--force_cpu', action='store_true',
-        help='Force pytorch to run in CPU mode.')
-
-    opt = parser.parse_args()
-    
-    print(opt)
-    '''
+    opt = load_data(type, folder, frame_rate)
 
     assert not (opt.opencv_display and not opt.viz), 'Must use --viz with --opencv_display'
     assert not (opt.opencv_display and not opt.fast_viz), 'Cannot use --opencv_display without --fast_viz'
@@ -392,7 +292,7 @@ if __name__ == '__main__':
             # Write the matches to disk.
             out_matches = {'keypoints0': kpts0, 'keypoints1': kpts1,
                            'matches': matches, 'match_confidence': conf}
-            np.savez(str(matches_path), **out_matches)
+            np.savez(matches_path, **out_matches)
 
         # Keep the matching keypoints.
         valid = matches > -1
@@ -535,3 +435,115 @@ if __name__ == '__main__':
         print('AUC@5\t AUC@10\t AUC@20\t Prec\t MScore\t')
         print('{:.2f}\t {:.2f}\t {:.2f}\t {:.2f}\t {:.2f}\t'.format(
             aucs[0], aucs[1], aucs[2], prec, ms))
+
+    return
+
+
+if __name__ == '__main__':
+
+    ########## ADDED THIS TO CREATE PAIRS
+    
+    ########################## PARAMS ###################################
+    # folder of type of video
+    # random / phantom / EM_tracker_calib
+    type='random' # phantom / random / EM_tracker_calib
+    # RANDOM, UNDISTORTED: arrow / brain  / checkerboard_test_calibrated / gloves / 
+    # RANDOM, Distorted: books / points / spinal_section / spinal_section_pink
+    # EM_TRACKING_CALIB testing_points /testing_lines
+    # RANDOM, UNDISTORTED WITH MAC: mac_camera
+    folder = 'mac_camera' 
+    frame_rate = 1
+
+
+    superglue(type, folder, frame_rate=1)
+
+
+    ### ALL CODE BELOW IS ORIGINAL MAGICLEAP SUPERGLUE CODE ###################
+    ############################################################################
+    '''
+    parser = argparse.ArgumentParser(
+        description='Image pair matching and pose evaluation with SuperGlue',
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+
+
+    parser.add_argument(
+        '--input_pairs', type=str, 
+        #default='assets/scannet_sample_pairs_with_gt.txt',
+        default=Path(pairs_info),
+        help='Path to the list of image pairs')
+    parser.add_argument(
+        '--input_dir', type=str, 
+        #default='assets/scannet_sample_images/',
+        default=input_dir,
+        help='Path to the directory that contains the images')
+    parser.add_argument(
+        '--output_dir', type=str, default=output_dir,
+        help='Path to the directory in which the .npz results and optionally,'
+             'the visualization images are written')
+
+    parser.add_argument(
+        '--max_length', type=int, default=-1,
+        help='Maximum number of pairs to evaluate')
+    parser.add_argument(
+        '--resize', type=int, nargs='+', default=[-1], # [640, 480],
+        help='Resize the input image before running inference. If two numbers, '
+             'resize to the exact dimensions, if one number, resize the max '
+             'dimension, if [-1], do not resize')
+    parser.add_argument(
+        '--resize_float', action='store_true',
+        help='Resize the image after casting uint8 to float')
+
+    parser.add_argument(
+        '--superglue', choices={'indoor', 'outdoor'}, default='indoor',
+        help='SuperGlue weights')
+    parser.add_argument(
+        '--max_keypoints', type=int, default=1024,
+        help='Maximum number of keypoints detected by Superpoint'
+             ' (\'-1\' keeps all keypoints)')
+    parser.add_argument(
+        '--keypoint_threshold', type=float, default=0.005,
+        help='SuperPoint keypoint detector confidence threshold')
+    parser.add_argument(
+        '--nms_radius', type=int, default=4,
+        help='SuperPoint Non Maximum Suppression (NMS) radius'
+        ' (Must be positive)')
+    parser.add_argument(
+        '--sinkhorn_iterations', type=int, default=20,
+        help='Number of Sinkhorn iterations performed by SuperGlue')
+    parser.add_argument(
+        '--match_threshold', type=float, default=0.9,
+        help='SuperGlue match threshold')
+
+    parser.add_argument(
+        '--viz', action='store_true',default=True,
+        help='Visualize the matches and dump the plots')
+    parser.add_argument(
+        '--eval', action='store_true',
+        help='Perform the evaluation'
+             ' (requires ground truth pose and intrinsics)')
+    parser.add_argument(
+        '--fast_viz', action='store_true',default=True,
+        help='Use faster image visualization with OpenCV instead of Matplotlib')
+    parser.add_argument(
+        '--cache', action='store_true',
+        help='Skip the pair if output .npz files are already found')
+    parser.add_argument(
+        '--show_keypoints', action='store_true',
+        help='Plot the keypoints in addition to the matches')
+    parser.add_argument(
+        '--viz_extension', type=str, default='png', choices=['png', 'pdf'],
+        help='Visualization file extension. Use pdf for highest-quality.')
+    parser.add_argument(
+        '--opencv_display', action='store_true', default=True,
+        help='Visualize via OpenCV before saving output images')
+    parser.add_argument(
+        '--shuffle', action='store_true',
+        help='Shuffle ordering of pairs before processing')
+    parser.add_argument(
+        '--force_cpu', action='store_true',
+        help='Force pytorch to run in CPU mode.')
+
+    opt = parser.parse_args()
+    
+    print(opt)
+    '''
