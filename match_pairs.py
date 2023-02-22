@@ -63,56 +63,111 @@ from models.utils import (compute_pose_error, compute_epipolar_error,
 torch.set_grad_enabled(False)
 
 
+
+def superglue(pairs_info, ):
+
+    return
+
+
+class DictX(dict):
+    def __getattr__(self, key):
+        try:
+            return self[key]
+        except KeyError as k:
+            raise AttributeError(k)
+
+    def __setattr__(self, key, value):
+        self[key] = value
+
 if __name__ == '__main__':
 
     ########## ADDED THIS TO CREATE PAIRS
     
+    ########################## PARAMS ###################################
+    # folder of type of video
+    # random / phantom / EM_tracker_calib
+    type='random' # phantom / random / EM_tracker_calib
+    # RANDOM, UNDISTORTED: arrow / brain  / checkerboard_test_calibrated / gloves / 
+    # RANDOM, Distorted: books / points / spinal_section / spinal_section_pink
+    # EM_TRACKING_CALIB testing_points /testing_lines
+    # RANDOM, UNDISTORTED WITH MAC: mac_camera
+    folder = 'mac_camera' 
+    frame_rate = 1
+
+    ########################## LOADING ALL ###################################
     project_path = Path(__file__).parent.resolve()
-
-    phantom_take = 'surface'
-
-    input_dir = f'assets/phantom/{phantom_take}/images'
-    pairs_info = f'assets/phantom_{phantom_take}_pairs.txt'
-    output_dir = f'outputs/match_pairs_{phantom_take}/'
-
-    #frames_paths = sorted(glob.glob(f'{project_path}/{input_dir}/*.jpg'))
+    # where image frames are
+    input_dir = f'assets/{type}/{folder}/images'
+    # file specifying which image pairs to find matches for
+    pairs_info = f'assets/pairs_info/{type}_{folder}_fr_{frame_rate}_pairs.txt'
+    # where matched pairs output are put into
+    output_dir = f'outputs/match_pairs_{type}_{folder}/'
     
-    
-
-
     # path of image sequence
-    #vid_paths = sorted(glob.glob(f'{project_path}/assets/endo_sequence/seq_1/*.*'))
-    #images_path = f'{project_path}/assets/phantom/surface/images'
-    #vid_paths = sorted(glob.glob(f'{images_path}/*.*'))
     frames_paths = sorted(glob.glob(f'{project_path}/{input_dir}/*.*'))
 
-    # RENAMING TO 8 NUMBER FORMAT 
+    ########################### RENAMING IMAGES TO 8 NUMBER FORMAT IF NEEDED  ##########################
     if len(frames_paths[0].split('/')[-1])<11:
         print('changing file names')
         for idx in range(0,len(frames_paths)):
             old_pth = frames_paths[idx] 
             frame_num = int(old_pth.split('/')[-1].split('.')[0]) # name of file then number of frame
-            # Absolute path of a file
-            #old_name = r"E:\demos\files\reports\details.txt"
             new_pth = '{}/{}/{:08d}.png'.format(project_path,input_dir, frame_num)
-
             # Renaming the file
             os.rename(old_pth, new_pth)
     
+    ########################### create pairs info file if it doesn't already exist
+    if not os.path.isfile(pairs_info):
+        # Reloadimg frames_path in case names have been changed
         frames_paths = sorted(glob.glob(f'{project_path}/{input_dir}/*.*'))
-        #f = open("assets/endo_pairs.txt","w+")
         f = open(pairs_info,"w+")
-        for idx in range(0,len(frames_paths)-1):
+        for idx in np.arange(0,len(frames_paths)-1, frame_rate):
+            # path of img 1
             pth_1 = frames_paths[idx].split('/')[-1]
-            pth_2 = frames_paths[idx+1].split('/')[-1]
+            # path of img 2
+            pth_2 = frames_paths[idx+frame_rate].split('/')[-1]
 
             str = f'{pth_1} {pth_2} 0 0'
             f.write(str)
             f.write('\n')
-        
+        f.flush()
         f.close()
     
+
+    
+    opt = {
+        'input_pairs':Path(pairs_info),# 'Path to the list of image pairs'
+        'input_dir':Path(input_dir),# Path to the directory that contains the images
+        'output_dir':output_dir, # Path to the directory in which the .npz results and optionally,'
+                        #the visualization images are written
+        
+        'max_length':-1,# 'Maximum number of pairs to evaluate'
+        'resize':[-1] , # Resize the input image before running inference. If two numbers,
+                        # resize to the exact dimensions, if one number, resize the max 
+                        # dimension, if [-1], do not resize
+        'resize_float':True, # Resize the image after casting uint8 to float
+        'superglue': 'indoor',# SuperGlue weights choices={'indoor', 'outdoor'}
+        'max_keypoints':-1,#Maximum number of keypoints detected by Superpoint' (-1 keeps all keypoints)
+        'keypoint_threshold':0.005, #SuperPoint keypoint detector confidence threshold
+        'nms_radius':4,# SuperPoint Non Maximum Suppression (NMS) radius (Must be positive)
+        'sinkhorn_iterations':20,# Number of Sinkhorn iterations performed by SuperGlue
+        'match_threshold':0.9,# SuperGlue match threshold'
+
+        'viz':True,# Visualize the matches and dump the plots
+        'eval':False ,#Perform the evaluation' (requires ground truth pose and intrinsics)
+        'fast_viz':True,#'Use faster image visualization with OpenCV instead of Matplotlib'
+        'cache':False, # 'Skip the pair if output .npz files are already found'
+        'show_keypoints':False, # 'Plot the keypoints in addition to the matches'
+        'viz_extension':'png', # Visualization file extension. Use pdf for highest-quality.
+                                # choices=['png', 'pdf']
+        'opencv_display':True, # 'Visualize via OpenCV before saving output images'
+        'shuffle':False, # Shuffle ordering of pairs before processing'
+        'force_cpu':True # 'Force pytorch to run in CPU mode.'
+    }
+    opt = DictX(opt)
+    ### ALL CODE BELOW IS ORIGINAL MAGICLEAP SUPERGLUE CODE ###################
     ############################################################################
+    '''
     parser = argparse.ArgumentParser(
         description='Image pair matching and pose evaluation with SuperGlue',
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
@@ -121,7 +176,7 @@ if __name__ == '__main__':
     parser.add_argument(
         '--input_pairs', type=str, 
         #default='assets/scannet_sample_pairs_with_gt.txt',
-        default=pairs_info,
+        default=Path(pairs_info),
         help='Path to the list of image pairs')
     parser.add_argument(
         '--input_dir', type=str, 
@@ -137,10 +192,10 @@ if __name__ == '__main__':
         '--max_length', type=int, default=-1,
         help='Maximum number of pairs to evaluate')
     parser.add_argument(
-        '--resize', type=int, nargs='+', default=[640, 480], # [640, 480],
+        '--resize', type=int, nargs='+', default=[-1], # [640, 480],
         help='Resize the input image before running inference. If two numbers, '
              'resize to the exact dimensions, if one number, resize the max '
-             'dimension, if -1, do not resize')
+             'dimension, if [-1], do not resize')
     parser.add_argument(
         '--resize_float', action='store_true',
         help='Resize the image after casting uint8 to float')
@@ -196,7 +251,9 @@ if __name__ == '__main__':
         help='Force pytorch to run in CPU mode.')
 
     opt = parser.parse_args()
+    
     print(opt)
+    '''
 
     assert not (opt.opencv_display and not opt.viz), 'Must use --viz with --opencv_display'
     assert not (opt.opencv_display and not opt.fast_viz), 'Cannot use --opencv_display without --fast_viz'
