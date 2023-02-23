@@ -37,7 +37,7 @@ def triangulate_points_opencv_2(kp1_matched, kp2_matched, intrinsics, T_1_to_2):
     kp2_matched = kp2_matched.reshape(-1, 2).T
 
     # triangulate points
-    output_points = cv2.triangulatePoints(P1, P2, kp1_matched, kp2_matched)
+    output_points = cv2.triangulatePoints(P1, P2, kp1_matched, kp2_matched*0.001)
 
     # convert output points to 3D coordinates
     output_points = (output_points / output_points[3])

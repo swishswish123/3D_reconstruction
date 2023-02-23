@@ -20,16 +20,16 @@ if __name__=='__main__':
 
     ########################## PARAMS ###################################
     plot_output = False
-    method ='method_3' #sksurgery online 
+    method ='sksurgery' #sksurgery online 
     project_path = Path(__file__).parent.resolve()
     type='random' # random / phantom / EM_tracker_calib
     # RANDOM, UNDISTORTED: arrow / brain  / checkerboard_test_calibrated / gloves / 
     # RANDOM UNDISTORTED MAC CAM: mac_camera /
     # RANDOM, Distorted: books / points / spinal_section / spinal_section_pink
     # EM_TRACKING_CALIB testing_points /testing_lines
-    folder = 'mac_camera'
+    folder = 'brain'
     frame_rate = 1
-    TRACKING = False
+    TRACKING = True
     intrinsics = np.loadtxt(f'calibration/mac_calibration/intrinsics.txt')
     distortion = np.loadtxt(f'calibration/mac_calibration/distortion.txt')
     
@@ -145,6 +145,7 @@ if __name__=='__main__':
             # relative position between the two is going from the first image to the origin, then from origin to the second image
             #T_1_to_2 =   np.linalg.inv(hand_eye) @ im1_poses @ np.linalg.inv(im2_poses) @ hand_eye
             T_1_to_2 =   np.linalg.inv(hand_eye) @ im1_poses @ np.linalg.inv(im2_poses) @ np.linalg.inv(hand_eye)
+            
             # extracting R and T vectors 
             params = extract_rigid_body_parameters(T_1_to_2)
 
@@ -162,7 +163,7 @@ if __name__=='__main__':
             if np.size(kp1_matched)==0:
                 print('no matches')
             else:
-                D3_points = triangulate_points_opencv_2(kp1_matched, kp2_matched, intrinsics, T_1_to_2)
+                D3_points = triangulate_points_opencv_2(kp1_matched.T, kp2_matched.T, intrinsics, T_1_to_2)
 
                 #D3_points = triangulate_points_opencv(input_undistorted_points, intrinsics, intrinsics, R, T)
                 D3_points_all += np.ndarray.tolist(D3_points)
@@ -188,8 +189,8 @@ if __name__=='__main__':
             #plt.savefig(str(f'{reconstruction_output}/pairs/{im1}_{im2}_matches.png'), bbox_inches='tight', pad_inches=0)
             plt.savefig('matches.png', bbox_inches='tight', pad_inches=0)
         '''
-    all_points = np.asarray(D3_points_all)
-    all_colors = np.asarray(D3_colors_all)
+    all_points = np.asarray(D3_points_all, dtype='float')
+    all_colors = np.asarray(D3_colors_all, dtype='float')
     
     np.save(f'{reconstruction_output}/points.npy', all_points)
     np.save(f'{reconstruction_output}/colors.npy', all_colors)
