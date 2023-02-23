@@ -173,7 +173,7 @@ def triangulate_points_opencv_2(kp1_matched, kp2_matched, intrinsics, T_1_to_2):
     output_points = output_points[:3]/output_points[3]
 
     #return output_points[0].T
-    return output_points
+    return output_points.T
 
 def triangulate_points_opencv(input_undistorted_points,
                               left_camera_intrinsic_params,
