@@ -166,13 +166,14 @@ def triangulate_points_opencv_2(kp1_matched, kp2_matched, intrinsics, T_1_to_2):
 
     # convert keypoint coordinates to homogeneous coordinates
     # triangulate points
-    #output_points = cv2.triangulatePoints(P1, P2, kp1_matched, kp2_matched)
+    output_points = cv2.triangulatePoints(P1, P2, kp1_matched, kp2_matched)
     #output_points_T = cv2.triangulatePoints(P1, P2, kp1_matched.T, kp2_matched.T)
-    output_points = linear_LS_triangulation(kp1_matched, P1, kp2_matched, P2)
+    #output_points = linear_LS_triangulation(kp1_matched, P1, kp2_matched, P2)
     # convert output points to 3D coordinates
-    #output_points = output_points[:3]/output_points[3]
+    output_points = output_points[:3]/output_points[3]
 
-    return output_points[0].T
+    #return output_points[0].T
+    return output_points
 
 def triangulate_points_opencv(input_undistorted_points,
                               left_camera_intrinsic_params,
