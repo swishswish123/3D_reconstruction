@@ -139,6 +139,7 @@ def triangulate_points_opencv(input_undistorted_points,
 
     return output_points
 
+'''
 def triangulate_points_opencv_2(kp1_matched, kp2_matched, intrinsics, T_1_to_2):
     
     P1 = intrinsics @ np.array([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0]], dtype=np.double)
@@ -147,6 +148,23 @@ def triangulate_points_opencv_2(kp1_matched, kp2_matched, intrinsics, T_1_to_2):
     output_points = cv2.triangulatePoints(P1, P2, kp1_matched.T, kp2_matched.T)
 
     return (output_points[:3] / output_points[3] ).T
+'''
+
+def triangulate_points_opencv_2(kp1_matched, kp2_matched, intrinsics, T_1_to_2):
+    
+    P1 = intrinsics @ np.hstack((np.identity(3), np.zeros((3, 1))))
+    P2 = intrinsics @ T_1_to_2[:3,:]
+
+    kp1_matched = kp1_matched.reshape(-1, 2).T
+    kp2_matched = kp2_matched.reshape(-1, 2).T
+
+    # triangulate points
+    output_points = cv2.triangulatePoints(P1, P2, kp1_matched, kp2_matched)
+
+    # convert output points to 3D coordinates
+    output_points = (output_points / output_points[3])
+
+    return output_points[:3]
 
 def extract_rigid_body_parameters(matrix):
     """
@@ -552,7 +570,9 @@ if __name__=='__main__':
         if method=='stereo':
             frame_1, frame_2 = stereo_rectify_method(img1_original, img2_original, im1_poses, im2_poses,intrinsics, distortion, imageSize)
         elif method=='prince':
+            #D3_points, D3_colors = get_xyz_method_prince(intrinsics,hand_eye, np.array(img1_original), kp1_matched, im1_poses,np.array(img2_original), kp2_matched, im2_poses)
             D3_points, D3_colors = get_xyz_method_prince(intrinsics,hand_eye, np.array(img1_original), kp1_matched, im1_poses,np.array(img2_original), kp2_matched, im2_poses)
+
             D3_points_all += D3_points
             D3_colors_all += D3_colors
         elif method == 'gpt':
