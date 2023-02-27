@@ -13,13 +13,14 @@ if __name__=='__main__':
     method = 'sksurgery'
     # folder of type of video
     # random / phantom / EM_tracker_calib
-    type='random' 
+    type='phantom' 
     # folder where image folder located
     # RANDOM, UNDISTORTED: arrow / brain  / checkerboard_test_calibrated / gloves / 
     # RANDOM, Distorted: books / points / spinal_section / spinal_section_pink
     # EM_TRACKING_CALIB testing_points /testing_lines
     # RANDOM, UNDISTORTED WITH MAC: mac_camera
-    folder = 'brain'
+    # PHANTOM: surface / right_in / phantom_surface_2 / both_mid
+    folder = 'phantom_surface_2'
 
     ########################## LOADING ALL ###################################
 
@@ -44,9 +45,9 @@ if __name__=='__main__':
     ########################## PLOTTING ###################################
 
     # plot scatter graph with colors
-    trace = go.Scatter3d(x=df.X,
-                      y=df.Y,
-                      z=df.Z,
+    trace = go.Scatter3d(x=df.X*10,
+                      y=df.Y*10,
+                      z=df.Z*10,
                       mode='markers',
                       marker=dict(size=3,
                                   color=['rgb({},{},{})'.format(r,g,b) for r,g,b in zip(df.R.values, df.G.values, df.B.values)],

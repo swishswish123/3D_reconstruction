@@ -7,5 +7,4 @@ dump_*/
 outputs/
 pairs/
 __pycache__/
-calibration/
 reconstructions/

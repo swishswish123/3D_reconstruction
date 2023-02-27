@@ -31,3 +31,14 @@ Run `match_pairs.py` to get the matches- this will appear under 'outputs' folder
 `plot_reconstruction.py`
 
 
+# STEPS TO RUN RECONSTRUCTION
+
+1. clone git repo and install all above requirements
+2. download data and place it in a folder called assets/random https://drive.google.com/file/d/1n9fJ-a9MQr3BucgcRqIGlF40omruhb4r/view?usp=share_link
+3. Open python file reconstruction.py 
+4. choose correct data folder and subfolder name under "type"->folder under "assets" and "folder"->folder name after "type"
+5. run reconstruction.py
+
+To visualise results:
+6. open plot_reconstruction and change the type and folder to be the same as in reconstruction.py
+7. run plot_reconstruction.py

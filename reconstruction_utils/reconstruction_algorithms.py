@@ -159,21 +159,85 @@ def linear_LS_triangulation(u1, P1, u2, P2):
     
     return x.T.astype(dtype='float'), np.ones(len(u1), dtype=bool)
 
-def triangulate_points_opencv_2(kp1_matched, kp2_matched, intrinsics, T_1_to_2):
-    
-    P1 = intrinsics @ np.hstack((np.identity(3), np.zeros((3, 1))))
-    P2 = intrinsics @ T_1_to_2[:3]
 
+def normalize_keypoints(norm_kpts, camera_matrix, dist_coeffs):
+    # Get camera parameters
+    cx = camera_matrix[0, 2]
+    cy = camera_matrix[1, 2]
+    fx = camera_matrix[0, 0]
+    fy = camera_matrix[1, 1]
+    #dist_coeffs = camera_matrix[:, 4:]
+
+    # Normalize keypoints
+    #norm_kpts = cv2.undistortPoints(norm_kpts.reshape(-1, 1, 2), camera_matrix, dist_coeffs, None, None)
+    norm_kpts = norm_kpts.reshape(-1, 2)
+    norm_kpts[:, 0] = (norm_kpts[:, 0] - cx) / fx
+    norm_kpts[:, 1] = (norm_kpts[:, 1] - cy) / fy
+
+    return norm_kpts
+
+'''
+def triangulate_points_dlt(kp1_matched, kp2_matched, P1, P2):
+    """
+    Triangulate 3D point from 2D correspondences using Direct Linear Transform (DLT)
+    """
+    
+    # Normalize image coordinates
+    kp1_norm = np.linalg.inv(P1[:3, :3]) @ np.vstack((kp1_matched.T, np.ones((1, kp1_matched.shape[0]))))
+    kp1_norm /= kp1_norm[-1, :]
+    
+    kp2_norm = np.linalg.inv(P2[:3, :3]) @ np.vstack((kp2_matched.T, np.ones((1, kp2_matched.shape[0]))))
+    kp2_norm /= kp2_norm[-1, :]
+    
+    # Setup homogeneous linear equation Ax = 0
+    A = np.zeros((4, 4))
+    for i in range(kp1_matched.shape[0]):
+        A[0, :] = kp1_norm[:, i].T @ P1[2, :] - P1[0, :]
+        A[1, :] = kp1_norm[:, i].T @ P1[2, :] - P1[1, :]
+        A[2, :] = kp2_norm[:, i].T @ P2[2, :] - P2[0, :]
+        A[3, :] = kp2_norm[:, i].T @ P2[2, :] - P2[1, :]
+    
+        # Solve for the 3D point using least-squares
+        _, _, V = np.linalg.svd(A)
+        X_homogeneous = V[-1, :]
+        X_homogeneous /= X_homogeneous[-1]
+        
+    # De-normalize 3D point
+    X = np.linalg.inv(P1[:3, :3]) @ X_homogeneous[:3]
+    X /= X[-1]
+    
+    return X
+'''
+
+
+
+
+def triangulate_points_opencv_2(kp1_matched, kp2_matched, intrinsics, T_1_to_2, poses1, poses2,  distortion):
+    
+    #P1 = intrinsics @ np.hstack((np.identity(3), np.zeros((3, 1))))
+    #P2 = intrinsics @ T_1_to_2[:3]
+
+    P1 =  poses1[:3]
+    P2 =  poses2[:3]
+
+    kp1_matched = normalize_keypoints(kp1_matched, intrinsics, distortion)
+    kp2_matched = normalize_keypoints(kp2_matched, intrinsics, distortion)
     # convert keypoint coordinates to homogeneous coordinates
     # triangulate points
-    output_points = cv2.triangulatePoints(P1, P2, kp1_matched, kp2_matched)
+    
+    output_points = cv2.triangulatePoints(P1, P2, kp1_matched.T, kp2_matched.T)
+    #output_points = triangulate_points_dlt(kp1_matched, kp2_matched, P1, P2)
+    
     #output_points_T = cv2.triangulatePoints(P1, P2, kp1_matched.T, kp2_matched.T)
     #output_points = linear_LS_triangulation(kp1_matched, P1, kp2_matched, P2)
     # convert output points to 3D coordinates
     output_points = output_points[:3]/output_points[3]
+    output_points = output_points.T
+    mask = (output_points>0).all(axis=1)
+    output_points = output_points[mask] 
 
     #return output_points[0].T
-    return output_points.T
+    return output_points, mask
 
 def triangulate_points_opencv(input_undistorted_points,
                               left_camera_intrinsic_params,

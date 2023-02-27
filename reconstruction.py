@@ -22,12 +22,16 @@ if __name__=='__main__':
     plot_output = False
     method ='sksurgery' #sksurgery online 
     project_path = Path(__file__).parent.resolve()
-    type='random' # random / phantom / EM_tracker_calib
+    
+    # CHANGE ME:
+    type='phantom' # random / phantom / EM_tracker_calib
+    folder = 'phantom_surface_2'
     # RANDOM, UNDISTORTED: arrow / brain  / checkerboard_test_calibrated / gloves / 
     # RANDOM UNDISTORTED MAC CAM: mac_camera /
     # RANDOM, Distorted: books / points / spinal_section / spinal_section_pink
     # EM_TRACKING_CALIB testing_points /testing_lines
-    folder = 'brain'
+    # PHANTOM: surface / right_in / phantom_surface_2 / both_mid
+    
     frame_rate = 1
     TRACKING = True
     intrinsics = np.loadtxt(f'calibration/mac_calibration/intrinsics.txt')
@@ -163,8 +167,8 @@ if __name__=='__main__':
             if np.size(kp1_matched)==0:
                 print('no matches')
             else:
-                D3_points = triangulate_points_opencv_2(kp1_matched.T, kp2_matched.T, intrinsics, T_1_to_2)
-
+                D3_points, mask  = triangulate_points_opencv_2(kp1_matched.T, kp2_matched.T, intrinsics, T_1_to_2, im1_poses, im2_poses,  distortion)
+                D3_colors = D3_colors[mask]
                 #D3_points = triangulate_points_opencv(input_undistorted_points, intrinsics, intrinsics, R, T)
                 D3_points_all += np.ndarray.tolist(D3_points)
                 D3_colors_all += np.ndarray.tolist(D3_colors)

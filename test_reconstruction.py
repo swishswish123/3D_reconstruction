@@ -62,23 +62,24 @@ class TestReconstruction(unittest.TestCase):
 
         self.image2_points, _ = cv2.projectPoints(self.xyz, self.rvec_2, self.tvec_2, self.intrinsics, self.distortion)
         
-
         return
 
     def tearDown(self):
         pass
-
+    
+    '''
     def test_gpt(self):
         
         result = reconstruction.reconstruction_gpt(self.image1_points, self.image2_points, self.intrinsics, self.T_1_to_2)
         print('gpt')
         print(result)
-
+    '''
     def test_triangulation_opencv_2(self):
-
-        result = reconstruction.triangulate_points_opencv_2(self.image1_points, self.image2_points, self.intrinsics, self.T_1_to_2)
+        im1_poses = rigid_body_parameters_to_matrix(np.concatenate((self.rvec_1,self.tvec_1)))
+        im2_poses = rigid_body_parameters_to_matrix(np.concatenate((self.rvec_2,self.tvec_2)))
+        result = reconstruction.triangulate_points_opencv_2(self.image1_points, self.image2_points, self.intrinsics, self.T_1_to_2,  im1_poses, im2_poses,  self.distortion)
         print('opencv 2')
-        print(f'{result.T.round()}')
+        print(f'{result.round()}')
         result=result.T
         self.assertEqual( round(result[0][0]), self.xyz[0][0])
         self.assertEqual( round(result[0][1]), self.xyz[0][1])
