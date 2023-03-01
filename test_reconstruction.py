@@ -20,7 +20,9 @@ class TestReconstruction(unittest.TestCase):
         self.xyz  = np.array([[940, 530, 50],
                               [5.0, 10., 20.0],
                               [500.0, 110., 20.0],
-                              [56.0, 0.8, 21.0]
+                              [56.0, 0.8, 21.0],
+                              [5.0, 8, 20],
+                              [1,2,3]
                                 ]) # define an arbitrary 3D point in world coordinates
         # converting to homogenous
         self.xyz_hom = cv2.convertPointsToHomogeneous(self.xyz).squeeze()
@@ -54,6 +56,7 @@ class TestReconstruction(unittest.TestCase):
     
 
     def test_projection_matrices(self):
+        print('TESTING OPENCV AND PROJECTION IS THE SAME')
         # testing if projection using opencv method and proj matrices same
         # OPENCV
         image1_points, _ = cv2.projectPoints(self.xyz, self.rvec_1, self.tvec_1, self.intrinsics, self.distortion)
@@ -63,26 +66,57 @@ class TestReconstruction(unittest.TestCase):
         image2_points = image2_points.squeeze()
 
         # Projection wa
-        P0, P1 = get_projection_matrices(self.rvec_1,self.rvec_2, self.tvec_1, self.tvec_2, self.intrinsics)
-        
-        #####################
-        for point in self.xyz_hom:
-            im_point_0 = P0 @ point # project this point using the first camera pose
-            im_point_0 = im_point_0/im_point_0[-1] # normalize as we are in homogenuous coordinates
+        P1, P2 = get_projection_matrices(self.rvec_1,self.rvec_2, self.tvec_1, self.tvec_2, self.intrinsics)
+        points = self.xyz_hom.T
+        im1 = P1@points
+        im1 = im1[:2, :] / im1[2, :]
 
-            im_point_1 = P1 @ point
-            im_point_1 = im_point_1/im_point_1[-1] # normalize as we are in homogenuous coordinates
-            
+        im2 = P2@points
+        im2 = im1[:2, :] / im2[2, :]
+
+        print('image 1 points')
+        print(image1_points)
+        print(im1.T)
+        print('image 2 points')
+        print(image2_points)
+        print(im2.T)
 
         plt.figure()
-        plt.scatter(self.image1_points[:,0], self.image1_points[:,0])
-        plt.scatter(im_point_0[0], im_point_1[1])
+        plt.scatter(image1_points[:,0], image1_points[:,0])
+        plt.scatter(im1[0], im1[1])
         plt.savefig("mygraph.png")
 
 
+    def test_projection_loop(self):
+        P0, P1 = get_projection_matrices(self.rvec_1,self.rvec_2, self.tvec_1, self.tvec_2, self.intrinsics)
+        print(' loop')
 
-    def test_projection(self):
+        im0_points_all = np.zeros((self.xyz_hom.shape[0],2))
+        for idx, point in enumerate(self.xyz_hom):
+            # Projecting 3D point to 2D using projection matrices
+            im_point_0 = P0 @ point # project this point using the first camera pose
+            im0_points_all[idx,:] = im_point_0[:2]/im_point_0[-1] # normalize as we are in homogenuous coordinates
+            
 
+            im_point_1 = P1 @ point
+            im_point_1 = im_point_1[:2]/im_point_1[-1] # normalize as we are in homogenuous coordinates
+        
+        print(im0_points_all)  
+        # Projection wa
+        print('no loop')
+        points = self.xyz_hom.T
+        im1 = P0@points
+        im1 = (im1[:2, :] / im1[2, :]).T
+        print(im1)
+        im2 = P1@points
+        im2 = (im2[:2, :] / im2[2, :]).T
+
+        self.assertEqual(im0_points_all.all(), im1.all())
+
+
+
+    def test_triangulation(self):
+        print('TESTING BASIC TRIANGULATION')
         P0, P1 = get_projection_matrices(self.rvec_1,self.rvec_2, self.tvec_1, self.tvec_2, self.intrinsics)
         
         for point in self.xyz_hom:
@@ -97,15 +131,24 @@ class TestReconstruction(unittest.TestCase):
             res = cv2.triangulatePoints(P0, P1, im_point_0[:2], im_point_1[:2]) 
             res = res[:3]/res[-1]
 
-            
 
-    
+            
     def test_triangulation_opencv_2(self):
+        print('TESTING FUNCTION')
+
         im1_poses = rigid_body_parameters_to_matrix(np.concatenate((self.rvec_1,self.tvec_1)))
         im2_poses = rigid_body_parameters_to_matrix(np.concatenate((self.rvec_2,self.tvec_2)))
+
+        image1_points, _ = cv2.projectPoints(self.xyz, self.rvec_1, self.tvec_1, self.intrinsics, self.distortion)
+        image1_points = image1_points.squeeze()      
+
+        image2_points, _ = cv2.projectPoints(self.xyz, self.rvec_2, self.tvec_2, self.intrinsics, self.distortion)
+        image2_points = image2_points.squeeze()
+
+
         #im1_norm = np.matmul(np.linalg.inv(self.intrinsics), self.image1_points)
         #im2_norm = np.matmul(np.linalg.inv(self.intrinsics), self.image2_points)
-        result = reconstruction.triangulate_points_opencv_2(self.image1_points, self.image2_points, self.intrinsics, self.T_1_to_2,  im1_poses, im2_poses,  self.distortion)
+        result = reconstruction.triangulate_points_opencv_2(image1_points, image2_points, self.intrinsics, self.T_1_to_2,  im1_poses, im2_poses,  self.distortion)
         print('opencv 2')
         print(f'{result.round()}')
         #result=result.T
