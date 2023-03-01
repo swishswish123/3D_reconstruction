@@ -1,10 +1,12 @@
-Python3 >= 3.5
-PyTorch >= 1.1
-OpenCV >= 3.4 (4.1.2.30 recommended for best GUI keyboard interaction, see this note)
-Matplotlib >= 3.1
-NumPy >= 1.18
+# Don't put comments after version numbers. Use these comment lines instead.
 
-#added
+# (4.1.2.30 recommended for best GUI keyboard interaction, see this note)
+opencv-python>=3.4
+matplotlib>=3.1
+numpy>=1.18
+
+# added
+pytest
 scipy
 pandas
 scikit-surgerycore
