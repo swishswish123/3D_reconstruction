@@ -24,6 +24,68 @@ def normalise(kp_matched, intrinsics):
     kp_matched = kp_hom @ np.linalg.inv(intrinsics)
     return kp_matched
 
+
+def rigid_body_parameters_to_matrix(params):
+    """
+    rigid_body_parameters_to_matrix(params)
+    converts a list of rigid body parameters to transformation matrix
+
+    Args:
+        params: list of rigid body parameters
+
+    Returns:
+        4x4 transformation matrix of these parameters
+
+    """
+    matrix = np.eye(4)
+    r = (spr.from_euler('zyx', [params[0], params[1], params[2]], degrees=True)).as_matrix()
+    matrix[0:3, 0:3] = r
+    matrix[0][3] = params[3]
+    matrix[1][3] = params[4]
+    matrix[2][3] = params[5]
+    return matrix
+
+def eulerAnglesToRotationMatrix( theta) :
+    R_x = np.array([[1,         0,                  0                   ],
+                    [0,         math.cos(theta[0]), -math.sin(theta[0]) ],
+                    [0,         math.sin(theta[0]), math.cos(theta[0])  ]
+                    ])    
+
+    R_y = np.array([[math.cos(theta[1]),    0,      math.sin(theta[1])  ],  
+                    [0,                     1,      0                   ],
+                    [-math.sin(theta[1]),   0,      math.cos(theta[1])  ]
+                    ])
+
+    R_z = np.array([[math.cos(theta[2]),    -math.sin(theta[2]),    0], 
+                    [math.sin(theta[2]),    math.cos(theta[2]),     0], 
+                    [0,                     0,                      1]
+                    ])    
+
+    R = np.dot(R_z, np.dot( R_y, R_x ))
+
+    return R
+
+
+
+def get_projection_matrices(rvec_1,rvec_2, tvec_1, tvec_2, K):
+    #hom_xyz = cv2.convertPointsToHomogeneous(self.xyz).squeeze().T
+
+    T0 = np.array(tvec_1) # Translation vector
+    R0 = eulerAnglesToRotationMatrix(rvec_1) # Rotation matrix:
+    RT0 = np.zeros((3,4))  # combined Rotation/Translation matrix
+    RT0[:3,:3] = R0
+    RT0[:3, 3] = T0
+    P0 = K@RT0 # Projection matrix
+
+    T1 = np.array(tvec_2)
+    R1 = eulerAnglesToRotationMatrix(rvec_2) # Rotation matrix:
+    RT1 = np.zeros((3,4))
+    RT1[:3,:3] = R1
+    RT1[:3, 3] = -T1
+    P1 = K@ RT1
+    return P0, P1
+
+
 def l2r_to_p2d(p2d, l2r):
     """
     Function to convert l2r array to p2d array, which removes last row of l2r to create p2d.

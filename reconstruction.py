@@ -34,8 +34,8 @@ if __name__=='__main__':
     
     frame_rate = 1
     TRACKING = True
-    intrinsics = np.loadtxt(f'calibration/endoscope_calibration/intrinsics.txt')
-    distortion = np.loadtxt(f'calibration/endoscope_calibration/distortion.txt')
+    intrinsics = np.loadtxt(f'{project_path}/calibration/endoscope_calibration/intrinsics.txt')
+    distortion = np.loadtxt(f'{project_path}/calibration/endoscope_calibration/distortion.txt')
     
     matching_method = 'sift' # sift / superglue
     dist_correction = False
