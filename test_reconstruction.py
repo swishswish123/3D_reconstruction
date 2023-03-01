@@ -97,10 +97,6 @@ class TestReconstruction(unittest.TestCase):
             im_point_0 = P0 @ point # project this point using the first camera pose
             im0_points_all[idx,:] = im_point_0[:2]/im_point_0[-1] # normalize as we are in homogenuous coordinates
             
-
-            im_point_1 = P1 @ point
-            im_point_1 = im_point_1[:2]/im_point_1[-1] # normalize as we are in homogenuous coordinates
-        
         print(im0_points_all)  
         # Projection wa
         print('no loop')
@@ -108,8 +104,6 @@ class TestReconstruction(unittest.TestCase):
         im1 = P0@points
         im1 = (im1[:2, :] / im1[2, :]).T
         print(im1)
-        im2 = P1@points
-        im2 = (im2[:2, :] / im2[2, :]).T
 
         self.assertEqual(im0_points_all.all(), im1.all())
 
@@ -118,8 +112,22 @@ class TestReconstruction(unittest.TestCase):
     def test_triangulation(self):
         print('TESTING BASIC TRIANGULATION')
         P0, P1 = get_projection_matrices(self.rvec_1,self.rvec_2, self.tvec_1, self.tvec_2, self.intrinsics)
+        points = self.xyz_hom.T
         
-        for point in self.xyz_hom:
+        # projecting points
+        im0 = P0@points
+        im0 = im0[:2, :] / im0[2, :]
+
+        im2 = P0@points
+        im2 = im2[:2, :] / im2[2, :]
+
+        res_1 = cv2.triangulatePoints(P0, P1, im0, im2) 
+        res_1 = res_1[:3] / res_1[3, :]
+        print('reconstruction 1')
+        print(res_1.T)
+
+        output_points_all = np.zeros((im2.shape[1],3))
+        for i,point in enumerate(self.xyz_hom):
             # Projecting 3D point to 2D using projection matrices
             im_point_0 = P0 @ point # project this point using the first camera pose
             im_point_0 = im_point_0/im_point_0[-1] # normalize as we are in homogenuous coordinates
@@ -127,9 +135,11 @@ class TestReconstruction(unittest.TestCase):
             im_point_1 = P1 @ point
             im_point_1 = im_point_1/im_point_1[-1] # normalize as we are in homogenuous coordinates
            
-
             res = cv2.triangulatePoints(P0, P1, im_point_0[:2], im_point_1[:2]) 
-            res = res[:3]/res[-1]
+            output_points_all[i,:] = (res[:3]/res[-1]).squeeze()
+        
+        print('RECON2')
+        print(output_points_all)
 
 
             
