@@ -11,6 +11,18 @@ from models.utils import plot_keypoints, plot_matches,process_resize
 from scipy.spatial.transform import Rotation as spr
 import sksurgerycore.transforms.matrix as stm
 import match_pairs
+import math
+
+def un_normalise(kp_norm, intrinsics):
+    kp_hom= kp_norm@intrinsics
+    kp_orig = cv2.convertPointsFromHomogeneous(kp_hom).squeeze()
+    return kp_orig
+
+def normalise(kp_matched, intrinsics):
+    kp_hom = cv2.convertPointsToHomogeneous(kp_matched).squeeze()
+    #kp_matched = np.matmul(kp_hom, np.linalg.inv(intrinsics))
+    kp_matched = kp_hom @ np.linalg.inv(intrinsics)
+    return kp_matched
 
 def l2r_to_p2d(p2d, l2r):
     """
@@ -28,6 +40,7 @@ def l2r_to_p2d(p2d, l2r):
     return p2d
 
 
+'''
 def triangulate_points_opencv_2(kp1_matched, kp2_matched, intrinsics, T_1_to_2):
     
     P1 = intrinsics @ np.hstack((np.identity(3), np.zeros((3, 1))))
@@ -43,6 +56,29 @@ def triangulate_points_opencv_2(kp1_matched, kp2_matched, intrinsics, T_1_to_2):
     output_points = (output_points / output_points[3])
 
     return output_points[:3]
+
+'''
+
+
+def eulerAnglesToRotationMatrix( theta) :
+    R_x = np.array([[1,         0,                  0                   ],
+                    [0,         math.cos(theta[0]), -math.sin(theta[0]) ],
+                    [0,         math.sin(theta[0]), math.cos(theta[0])  ]
+                    ])    
+
+    R_y = np.array([[math.cos(theta[1]),    0,      math.sin(theta[1])  ],  
+                    [0,                     1,      0                   ],
+                    [-math.sin(theta[1]),   0,      math.cos(theta[1])  ]
+                    ])
+
+    R_z = np.array([[math.cos(theta[2]),    -math.sin(theta[2]),    0], 
+                    [math.sin(theta[2]),    math.cos(theta[2]),     0], 
+                    [0,                     0,                      1]
+                    ])    
+
+    R = np.dot(R_z, np.dot( R_y, R_x ))
+
+    return R
 
 def extract_rigid_body_parameters(matrix):
     """
@@ -83,6 +119,7 @@ def read_img(path):
     #image = cv2.resize(image.astype('float32'), (w_new, h_new))
     return image
 
+
 def img_poses_reformat(im_poses):
     # MATRICES OF EQUATION 1
     tx = im_poses[0,-1]
@@ -92,9 +129,11 @@ def img_poses_reformat(im_poses):
     w31 = im_poses[2,0]
     w11 = im_poses[0,0]
     w21 = im_poses[1,0]
+    
     w32 = im_poses[2,1]
     w12 = im_poses[0,1]
     w22 = im_poses[1,1]
+    
     w33 = im_poses[2,2]
     w13 = im_poses[0,2]
     w23 = im_poses[1,2]
@@ -156,6 +195,7 @@ def get_matched_keypoints_sift(img1_original, img2_original):
     # converting to np array
     kp1_matched =  np.asarray(good_kp1_matched) # selecting all indeces that are matches in im1
     kp2_matched =  np.asarray(good_kp2_matched) # selecting points whose indeces are matches in sim2        
+    
     
     return kp1_matched, kp2_matched
         

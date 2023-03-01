@@ -10,7 +10,7 @@ from models.utils import plot_keypoints, plot_matches,process_resize
 from scipy.spatial.transform import Rotation as spr
 import sksurgerycore.transforms.matrix as stm
 import match_pairs
-
+import copy
 from reconstruction_utils.utils import *
 from reconstruction_utils.reconstruction_algorithms import *
 
@@ -24,8 +24,8 @@ if __name__=='__main__':
     project_path = Path(__file__).parent.resolve()
     
     # CHANGE ME:
-    type='phantom' # random / phantom / EM_tracker_calib
-    folder = 'phantom_surface_2'
+    type='random' # random / phantom / EM_tracker_calib
+    folder = 'brain'
     # RANDOM, UNDISTORTED: arrow / brain  / checkerboard_test_calibrated / gloves / 
     # RANDOM UNDISTORTED MAC CAM: mac_camera /
     # RANDOM, Distorted: books / points / spinal_section / spinal_section_pink
@@ -34,11 +34,11 @@ if __name__=='__main__':
     
     frame_rate = 1
     TRACKING = True
-    intrinsics = np.loadtxt(f'calibration/mac_calibration/intrinsics.txt')
-    distortion = np.loadtxt(f'calibration/mac_calibration/distortion.txt')
+    intrinsics = np.loadtxt(f'calibration/endoscope_calibration/intrinsics.txt')
+    distortion = np.loadtxt(f'calibration/endoscope_calibration/distortion.txt')
     
     matching_method = 'sift' # sift / superglue
-
+    dist_correction = False
     ######################## PERFORMING SUPERGLUE MATCHING ########################################
     if matching_method == 'superglue':
         match_pairs.superglue(type, folder, frame_rate=frame_rate)
@@ -86,6 +86,31 @@ if __name__=='__main__':
         # loading images    
         img1_original = cv2.imread(im1_path)  
         img2_original = cv2.imread(im2_path) 
+        
+        if dist_correction:
+            # only do this the first time
+            h,  w = img1_original.shape[:2]
+            newcameramtx, roi = cv2.getOptimalNewCameraMatrix(intrinsics,distortion,(w,h),1,(w,h))
+            
+            # undistorting images
+            
+            #mapx,mapy = cv2.initUndistortRectifyMap(intrinsics,distortion,None,newcameramtx,(w,h),5)
+            #dst1 = cv2.remap(img1_original,mapx,mapy,cv2.INTER_LINEAR)
+
+            dst1 = cv2.undistort(copy.deepcopy(img1_original), intrinsics, distortion, None, newcameramtx)
+            dst2 = cv2.undistort(copy.deepcopy(img2_original) , intrinsics, distortion, None, newcameramtx)
+
+            x, y, w, h = roi
+            img1_original = dst1[y:y+h, x:x+w]
+            img2_original = dst2[y:y+h, x:x+w]
+
+            
+            #dst2 = cv2.remap(img2_original,mapx,mapy,cv2.INTER_LINEAR)
+
+            #undistorted = undistorted[y:y+h, x:x+w]
+            #undistorted_2 = undistorted_2[y:y+h, x:x+w]
+            numpy_vertical = np.concatenate((cv2.resize(dst1,(w,h)), cv2.resize(img1_original,(w,h))))
+            cv2.imshow('',numpy_vertical)
         
         ############################### MATCHING ##########################
         # obtaining or loading keypoints between images 
@@ -148,8 +173,10 @@ if __name__=='__main__':
         elif method=='sksurgery':
             # relative position between the two is going from the first image to the origin, then from origin to the second image
             #T_1_to_2 =   np.linalg.inv(hand_eye) @ im1_poses @ np.linalg.inv(im2_poses) @ hand_eye
-            T_1_to_2 =   np.linalg.inv(hand_eye) @ im1_poses @ np.linalg.inv(im2_poses) @ np.linalg.inv(hand_eye)
-            
+            #T_1_to_2 =   np.linalg.inv(hand_eye) @ im1_poses @ np.linalg.inv(im2_poses) @ np.linalg.inv(hand_eye)
+            T_1_to_2 =  np.linalg.inv(im2_poses) @ im1_poses
+            T_1_to_2 = hand_eye@np.linalg.inv(im2_poses) @ im1_poses@np.linalg.inv(hand_eye)
+
             # extracting R and T vectors 
             params = extract_rigid_body_parameters(T_1_to_2)
 
@@ -167,8 +194,8 @@ if __name__=='__main__':
             if np.size(kp1_matched)==0:
                 print('no matches')
             else:
-                D3_points, mask  = triangulate_points_opencv_2(kp1_matched.T, kp2_matched.T, intrinsics, T_1_to_2, im1_poses, im2_poses,  distortion)
-                D3_colors = D3_colors[mask]
+                D3_points  = triangulate_points_opencv_2(kp1_matched, kp2_matched, intrinsics, T_1_to_2, im1_poses, im2_poses,  distortion)
+                #D3_colors = D3_colors[mask]
                 #D3_points = triangulate_points_opencv(input_undistorted_points, intrinsics, intrinsics, R, T)
                 D3_points_all += np.ndarray.tolist(D3_points)
                 D3_colors_all += np.ndarray.tolist(D3_colors)
@@ -179,6 +206,7 @@ if __name__=='__main__':
             # selecting colors from first image
             D3_colors_all += np.ndarray.tolist(D3_colors)
         if cv2.waitKey(1) & 0xFF==ord('q'):
+            cv2.destroyAllWindows()
             break
 
         '''

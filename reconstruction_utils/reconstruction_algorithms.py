@@ -213,31 +213,65 @@ def triangulate_points_dlt(kp1_matched, kp2_matched, P1, P2):
 
 
 def triangulate_points_opencv_2(kp1_matched, kp2_matched, intrinsics, T_1_to_2, poses1, poses2,  distortion):
+    '''
+    points has to be NX4
+    '''
     
     #P1 = intrinsics @ np.hstack((np.identity(3), np.zeros((3, 1))))
     #P2 = intrinsics @ T_1_to_2[:3]
 
-    P1 =  poses1[:3]
-    P2 =  poses2[:3]
+    R = eulerAnglesToRotationMatrix([0,0,0]) # Rotation matrix:
+    K = intrinsics
 
-    kp1_matched = normalize_keypoints(kp1_matched, intrinsics, distortion)
-    kp2_matched = normalize_keypoints(kp2_matched, intrinsics, distortion)
+    T0 = np.array([0,0,0]) # Translation vector
+    RT0 = np.zeros((3,4))  # combined Rotation/Translation matrix
+    RT0[:3,:3] = R
+    RT0[:3, 3] = T0
+    P1 = K@RT0 # Projection matrix
+
+    T1 = T_1_to_2[:3,3]
+    RT1 = np.zeros((3,4))
+    RT1[:3,:3] = T_1_to_2[:3,:3]
+    RT1[:3, 3] = -T1
+    
+    P2 = K@ RT1
+
+    #P1 =  intrinsics @  poses1[:3]
+    #P2 =  intrinsics @  poses2[:3]
+
+    #kp1_matched = normalize_keypoints(kp1_matched, intrinsics, distortion) 
+    #kp2_matched = normalize_keypoints(kp2_matched, intrinsics, distortion)
+    #kp1_matched = cv2.undistortPoints(kp1_matched.reshape(-1, 1, 2), intrinsics, distortion, None, None)
+    #kp2_matched = cv2.undistortPoints(kp2_matched.reshape(-1, 1, 2), intrinsics, distortion, None, None)
+    
+    #kp1_matched = normalise(kp1_matched, intrinsics)
+    #kp2_matched = normalise(kp2_matched, intrinsics)
+
     # convert keypoint coordinates to homogeneous coordinates
     # triangulate points
-    
-    output_points = cv2.triangulatePoints(P1, P2, kp1_matched.T, kp2_matched.T)
-    #output_points = triangulate_points_dlt(kp1_matched, kp2_matched, P1, P2)
-    
-    #output_points_T = cv2.triangulatePoints(P1, P2, kp1_matched.T, kp2_matched.T)
-    #output_points = linear_LS_triangulation(kp1_matched, P1, kp2_matched, P2)
-    # convert output points to 3D coordinates
-    output_points = output_points[:3]/output_points[3]
-    output_points = output_points.T
-    mask = (output_points>0).all(axis=1)
-    output_points = output_points[mask] 
+    output_points_all = np.zeros((3,kp1_matched.shape[0]))
+    i = 0
+    for kp1, kp2 in zip(kp1_matched, kp2_matched):
+
+        output_points = cv2.triangulatePoints(P1, P2, kp1[:2], kp2[:2])
+        #output_points = cv2.triangulatePoints(P1, P2, kp1_matched.T, kp2_matched.T)
+        #output_points = triangulate_points_dlt(kp1_matched, kp2_matched, P1, P2)
+        
+        #output_points_T = cv2.triangulatePoints(P1, P2, kp1_matched.T, kp2_matched.T)
+        #output_points = linear_LS_triangulation(kp1_matched, P1, kp2_matched, P2)
+        # convert output points to 3D coordinates
+        output_points = output_points[:3]/output_points[3]
+
+        output_points_all[:,i] = output_points[:,0]
+
+        i=i+1
+    #output_points = output_points.T
+    #mask = (output_points>0).all(axis=1)
+    #output_points = output_points[mask] 
 
     #return output_points[0].T
-    return output_points, mask
+    print(output_points_all)
+    return output_points_all.T# , mask
 
 def triangulate_points_opencv(input_undistorted_points,
                               left_camera_intrinsic_params,
@@ -332,8 +366,9 @@ def get_xyz_method_prince(intrinsics, kp1_matched, im1_poses, kp2_matched, im2_p
 
     for idx in range(0,len(kp1_matched)):
         # first calculate X' and Y'
-        x1 = np.append(kp1_matched[idx],1)
-        x2 = np.append(kp2_matched[idx],1)
+        x1 = np.append(kp1_matched[idx],1) #[u,v,1]_1
+        x2 = np.append(kp2_matched[idx],1) #[u,v,1]_2
+        # convert to camera coordinates
         x1_norm = np.linalg.inv(intrinsics)@x1
         x2_norm = np.linalg.inv(intrinsics)@x2
 
@@ -379,10 +414,10 @@ def get_xyz_method_prince(intrinsics, kp1_matched, im1_poses, kp2_matched, im2_p
             X = np.linalg.solve(A[:3,:], b[:3,:])
             D3_points.append(np.ndarray.tolist(X.T[0]))
 
-        if image_1:
-            # solving equations
-            color = list(image_1[int(x1[1]),int(x1[0]),:]) # always selecting color of first image
-            D3_colors.append(color)
+        #if image_1:
+        # solving equations
+        color = list(image_1[int(x1[1]),int(x1[0]),:]) # always selecting color of first image
+        D3_colors.append(color)
             
     # open3D
     # 
