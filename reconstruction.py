@@ -38,7 +38,7 @@ if __name__=='__main__':
     distortion = np.loadtxt(f'{project_path}/calibration/endoscope_calibration/distortion.txt')
     
     matching_method = 'sift' # sift / superglue
-    dist_correction = False
+    dist_correction = True
     ######################## PERFORMING SUPERGLUE MATCHING ########################################
     if matching_method == 'superglue':
         match_pairs.superglue(type, folder, frame_rate=frame_rate)

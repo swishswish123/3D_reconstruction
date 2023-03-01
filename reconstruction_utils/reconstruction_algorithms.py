@@ -509,8 +509,8 @@ def get_xyz(cam1_coords, camera1_M, camera1_R, camera1_T, cam2_coords, camera2_M
     return D3_points
 
 
-def method_3( kp1_matched, kp2_matched, K):
-    F, mask = cv2.findFundamentalMat(kp1_matched, kp2_matched, cv2.FM_RANSAC)
+def estimate_camera_poses(kp1_matched, kp2_matched, K):
+    F, mask = cv2.findFundamentalMat(kp1_matched.T, kp2_matched.T, cv2.FM_RANSAC)
     if isinstance(F, np.ndarray):
         pass
     else:
@@ -520,7 +520,14 @@ def method_3( kp1_matched, kp2_matched, K):
 
 
     W = np.array([[0, -1, 0], [1, 0, 0], [0, 0, 1]], dtype=float)
-    _, R, t, mask = cv2.recoverPose(E, kp1_matched, kp2_matched, K)
+    _, R, t, mask = cv2.recoverPose(E, kp1_matched.T, kp2_matched.T, K)
+
+    return R,t
+
+
+def method_3( kp1_matched, kp2_matched, K):
+
+    R,t = estimate_camera_poses(kp1_matched, kp2_matched, K)
 
     p1 = K @ np.hstack((R, t))
     p2 = K @ np.hstack((np.identity(3), np.zeros((3, 1))))

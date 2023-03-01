@@ -1,6 +1,7 @@
 import unittest
 import reconstruction
 from reconstruction_utils.utils import get_projection_matrices, eulerAnglesToRotationMatrix, rigid_body_parameters_to_matrix
+from reconstruction_utils.reconstruction_algorithms import estimate_camera_poses, triangulate_points_opencv_2
 import numpy as np
 import cv2
 from scipy.spatial.transform import Rotation as spr
@@ -22,7 +23,13 @@ class TestReconstruction(unittest.TestCase):
                               [500.0, 110., 20.0],
                               [56.0, 0.8, 21.0],
                               [5.0, 8, 20],
-                              [1,2,3]
+                              [1,2,3],
+                              [5.0, 8, 20],
+                              [100,200,300],
+                              [5.0, 8, 20],
+                              [10,2.8,30],
+                              [5.0, 8, 20],
+                              [5,9,10]
                                 ]) # define an arbitrary 3D point in world coordinates
         # converting to homogenous
         self.xyz_hom = cv2.convertPointsToHomogeneous(self.xyz).squeeze()
@@ -156,14 +163,13 @@ class TestReconstruction(unittest.TestCase):
         im1 = P1@points
         image2_points = im1[:2, :] / im1[2, :]
 
-
         im1_poses = rigid_body_parameters_to_matrix(np.concatenate((self.rvec_1,self.tvec_1)))
         im2_poses = rigid_body_parameters_to_matrix(np.concatenate((self.rvec_2,self.tvec_2)))
 
         #im1_norm = np.matmul(np.linalg.inv(self.intrinsics), self.image1_points)
         #im2_norm = np.matmul(np.linalg.inv(self.intrinsics), self.image2_points)
         #result = reconstruction.triangulate_points_opencv_2(image1_points, image2_points, self.intrinsics, self.T_1_to_2,  im1_poses, im2_poses,  self.distortion)
-        result = reconstruction.triangulate_points_opencv_2(image1_points, image2_points, self.intrinsics,self.rvec_1,self.rvec_2, self.tvec_1, self.tvec_2, T_1_to_2=self.T_1_to_2, poses1=im1_poses, poses2=im2_poses,  distortion=self.distortion)
+        result = triangulate_points_opencv_2(image1_points, image2_points, self.intrinsics,self.rvec_1,self.rvec_2, self.tvec_1, self.tvec_2, T_1_to_2=self.T_1_to_2, poses1=im1_poses, poses2=im2_poses,  distortion=self.distortion)
         result = result.T
         print('recon ')
         print(f'{result.round()}')
@@ -177,6 +183,24 @@ class TestReconstruction(unittest.TestCase):
                 self.assertEqual( round(result[row,col]), round(original))
                 self.assertEqual( round(result[row,col]), round(original))
 
+
+    def test_pose_estimation(self):
+        P0, P1 = get_projection_matrices(self.rvec_1,self.rvec_2, self.tvec_1, self.tvec_2, self.intrinsics)
+        points = self.xyz_hom.T
+        
+        # projecting points
+        im0 = P0@points
+        image1_points = im0[:2, :] / im0[2, :]
+
+        im1 = P1@points
+        image2_points = im1[:2, :] / im1[2, :]
+        R,t = estimate_camera_poses(image2_points,image1_points, self.intrinsics)
+        print('T1 to T2')
+        print(self.T_1_to_2)
+        print('R')
+        print(R.round())
+        print('T')
+        print(t.round())
     '''
     def test_triangulation_opencv_2_opencvprojection(self):
         print('TESTING opencv recon')
