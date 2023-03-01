@@ -13,14 +13,14 @@ if __name__=='__main__':
     method = 'sksurgery'
     # folder of type of video
     # random / phantom / EM_tracker_calib
-    type='random' 
+    type='phantom' 
     # folder where image folder located
     # RANDOM, UNDISTORTED: arrow / brain  / checkerboard_test_calibrated / gloves / 
     # RANDOM, Distorted: books / points / spinal_section / spinal_section_pink
     # EM_TRACKING_CALIB testing_points /testing_lines
     # RANDOM, UNDISTORTED WITH MAC: mac_camera
     # PHANTOM: surface / right_in / phantom_surface_2 / both_mid
-    folder = 'brain'
+    folder = 'phantom_surface_2'
 
     ########################## LOADING ALL ###################################
 

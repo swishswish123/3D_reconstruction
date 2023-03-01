@@ -3,7 +3,8 @@
 ## Dependencies
 see requirements.txt
 
-* Python 3 >= 3.5
+From Superglue:
+* Python 3 >= 3.5 (I am using 3.9)
 * PyTorch >= 1.1
 * OpenCV >= 3.4 (4.1.2.30 recommended for best GUI keyboard interaction, see this [note](#additional-notes))
 * Matplotlib >= 3.1

@@ -118,15 +118,15 @@ class TestReconstruction(unittest.TestCase):
         im0 = P0@points
         im0 = im0[:2, :] / im0[2, :]
 
-        im2 = P0@points
-        im2 = im2[:2, :] / im2[2, :]
+        im1 = P1@points
+        im1 = im1[:2, :] / im1[2, :]
 
-        res_1 = cv2.triangulatePoints(P0, P1, im0, im2) 
+        res_1 = cv2.triangulatePoints(P0, P1, im0, im1) 
         res_1 = res_1[:3] / res_1[3, :]
         print('reconstruction 1')
         print(res_1.T)
 
-        output_points_all = np.zeros((im2.shape[1],3))
+        output_points_all = np.zeros((im1.shape[1],3))
         for i,point in enumerate(self.xyz_hom):
             # Projecting 3D point to 2D using projection matrices
             im_point_0 = P0 @ point # project this point using the first camera pose
@@ -142,9 +142,44 @@ class TestReconstruction(unittest.TestCase):
         print(output_points_all)
 
 
-            
-    def test_triangulation_opencv_2(self):
-        print('TESTING FUNCTION')
+    def test_triangulation_opencv_2_projection(self):
+        print('TESTING FUNCTION with projection pnts')
+        print('original')
+        print(self.xyz_hom.round())
+        P0, P1 = get_projection_matrices(self.rvec_1,self.rvec_2, self.tvec_1, self.tvec_2, self.intrinsics)
+        points = self.xyz_hom.T
+        
+        # projecting points
+        im0 = P0@points
+        image1_points = im0[:2, :] / im0[2, :]
+
+        im1 = P1@points
+        image2_points = im1[:2, :] / im1[2, :]
+
+
+        im1_poses = rigid_body_parameters_to_matrix(np.concatenate((self.rvec_1,self.tvec_1)))
+        im2_poses = rigid_body_parameters_to_matrix(np.concatenate((self.rvec_2,self.tvec_2)))
+
+        #im1_norm = np.matmul(np.linalg.inv(self.intrinsics), self.image1_points)
+        #im2_norm = np.matmul(np.linalg.inv(self.intrinsics), self.image2_points)
+        #result = reconstruction.triangulate_points_opencv_2(image1_points, image2_points, self.intrinsics, self.T_1_to_2,  im1_poses, im2_poses,  self.distortion)
+        result = reconstruction.triangulate_points_opencv_2(image1_points, image2_points, self.intrinsics,self.rvec_1,self.rvec_2, self.tvec_1, self.tvec_2, T_1_to_2=self.T_1_to_2, poses1=im1_poses, poses2=im2_poses,  distortion=self.distortion)
+        result = result.T
+        print('recon ')
+        print(f'{result.round()}')
+        #result=result.T
+        #self.assertEqual( round(result[0][0]), self.xyz[0][0])
+        #self.assertEqual( round(result[0][1]), self.xyz[0][1])
+        for row, point_x in enumerate(self.xyz):
+            print(point_x)
+            for col, original in enumerate(point_x):
+                self.assertEqual( round(result[row,col]), round(original))
+                self.assertEqual( round(result[row,col]), round(original))
+                self.assertEqual( round(result[row,col]), round(original))
+
+    '''
+    def test_triangulation_opencv_2_opencvprojection(self):
+        print('TESTING opencv recon')
 
         im1_poses = rigid_body_parameters_to_matrix(np.concatenate((self.rvec_1,self.tvec_1)))
         im2_poses = rigid_body_parameters_to_matrix(np.concatenate((self.rvec_2,self.tvec_2)))
@@ -158,14 +193,14 @@ class TestReconstruction(unittest.TestCase):
 
         #im1_norm = np.matmul(np.linalg.inv(self.intrinsics), self.image1_points)
         #im2_norm = np.matmul(np.linalg.inv(self.intrinsics), self.image2_points)
-        result = reconstruction.triangulate_points_opencv_2(image1_points, image2_points, self.intrinsics, self.T_1_to_2,  im1_poses, im2_poses,  self.distortion)
+        result = reconstruction.triangulate_points_opencv_2(image1_points, image2_points, self.intrinsics,self.rvec_1,self.rvec_2, self.tvec_1, self.tvec_2, T_1_to_2=self.T_1_to_2, poses1=im1_poses, poses2=im2_poses,  distortion=self.distortion)
         print('opencv 2')
         print(f'{result.round()}')
         #result=result.T
         self.assertEqual( round(result[0][0]), self.xyz[0][0])
         self.assertEqual( round(result[0][1]), self.xyz[0][1])
         self.assertEqual( round(result[0][2]), self.xyz[0][2])
-
+    '''
     '''
     def test_triangulation_prince(self):
 

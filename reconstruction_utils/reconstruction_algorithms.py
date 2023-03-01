@@ -212,29 +212,18 @@ def triangulate_points_dlt(kp1_matched, kp2_matched, P1, P2):
 
 
 
-def triangulate_points_opencv_2(kp1_matched, kp2_matched, intrinsics, T_1_to_2, poses1, poses2,  distortion):
+def triangulate_points_opencv_2(kp1_matched, kp2_matched, intrinsics,rvec_1,rvec_2, tvec_1, tvec_2, T_1_to_2=[], poses1=[], poses2=[],  distortion=[]):
     '''
-    points has to be NX4
+    kp1_matched->2*N
+
     '''
     
     #P1 = intrinsics @ np.hstack((np.identity(3), np.zeros((3, 1))))
     #P2 = intrinsics @ T_1_to_2[:3]
+    P0, P1 = get_projection_matrices(rvec_1,rvec_2, tvec_1, tvec_2, intrinsics)
 
-    R = eulerAnglesToRotationMatrix([0,0,0]) # Rotation matrix:
-    K = intrinsics
-
-    T0 = np.array([0,0,0]) # Translation vector
-    RT0 = np.zeros((3,4))  # combined Rotation/Translation matrix
-    RT0[:3,:3] = R
-    RT0[:3, 3] = T0
-    P1 = K@RT0 # Projection matrix
-
-    T1 = T_1_to_2[:3,3]
-    RT1 = np.zeros((3,4))
-    RT1[:3,:3] = T_1_to_2[:3,:3]
-    RT1[:3, 3] = -T1
-    
-    P2 = K@ RT1
+    res_1 = cv2.triangulatePoints(P0, P1, kp1_matched, kp2_matched) 
+    res_1 = res_1[:3] / res_1[3, :]
 
     #P1 =  intrinsics @  poses1[:3]
     #P2 =  intrinsics @  poses2[:3]
@@ -249,6 +238,7 @@ def triangulate_points_opencv_2(kp1_matched, kp2_matched, intrinsics, T_1_to_2, 
 
     # convert keypoint coordinates to homogeneous coordinates
     # triangulate points
+    '''
     output_points_all = np.zeros((3,kp1_matched.shape[0]))
     i = 0
     for kp1, kp2 in zip(kp1_matched, kp2_matched):
@@ -271,7 +261,8 @@ def triangulate_points_opencv_2(kp1_matched, kp2_matched, intrinsics, T_1_to_2, 
 
     #return output_points[0].T
     print(output_points_all)
-    return output_points_all.T# , mask
+    '''
+    return res_1
 
 def triangulate_points_opencv(input_undistorted_points,
                               left_camera_intrinsic_params,
