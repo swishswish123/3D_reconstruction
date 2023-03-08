@@ -38,17 +38,37 @@ class TestReconstruction(unittest.TestCase):
         '''
         normalised_xy = utils.normalise(self.xy, self.intrinsics)
         un_normalised = utils.un_normalise(normalised_xy, self.intrinsics)
-        
-        print('normalised')
-        print(normalised_xy)
-        print('un normalised 2')
-        print(f'{un_normalised.round()}')
 
         # testing the two arrays are the same
         ground_truth = self.xy
         acual = un_normalised
 
         test_arrays_equal(ground_truth, acual)
+        
+    def test_rigid_body_parameters_to_matrix(self):
+        # defining extrinsics of two camera views
+        rvec_1 = np.zeros(3)
+        tvec_1 = np.zeros(3)
+
+        rvec_2 = np.zeros(3)
+        tvec_2 = np.zeros(3) # x,y,z translation of second img
+        tvec_2[0] = 110   #x
+        tvec_2[1] = 100   #y
+        tvec_2[2] = 200   #z
+
+        # transform between two camera views
+        mat1 = rigid_body_parameters_to_matrix(np.concatenate([rvec_1, tvec_1])) 
+        mat2 = rigid_body_parameters_to_matrix(np.concatenate([rvec_2, tvec_2])) 
+        T_1_to_2 = mat2 @ np.linalg.inv(mat1) 
+
+        T_1_to_2_ground_truth = np.array([
+            [1,0,0,tvec_2[0]],
+            [0,1,0,tvec_2[1]],
+            [0,0,1,tvec_2[2]],
+            [0,0,0,1]
+        ])
+
+        test_arrays_equal(T_1_to_2, T_1_to_2_ground_truth)
         
 
 if __name__=='__main__':
