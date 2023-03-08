@@ -75,14 +75,17 @@ def calcBestHomography(pts1Cart, pts2Cart):
     return H
 
 def un_normalise(kp_norm, intrinsics):
-    kp_hom= kp_norm@intrinsics
+    kp_hom = cv2.convertPointsToHomogeneous(kp_norm).squeeze()
+    kp_hom= kp_hom@intrinsics
     kp_orig = cv2.convertPointsFromHomogeneous(kp_hom).squeeze()
     return kp_orig
 
 def normalise(kp_matched, intrinsics):
     kp_hom = cv2.convertPointsToHomogeneous(kp_matched).squeeze()
     #kp_matched = np.matmul(kp_hom, np.linalg.inv(intrinsics))
-    kp_matched = kp_hom @ np.linalg.inv(intrinsics)
+    kp_matched_hom = kp_hom @ np.linalg.inv(intrinsics)
+    
+    kp_matched = cv2.convertPointsFromHomogeneous(kp_matched_hom).squeeze()
     return kp_matched
 
 

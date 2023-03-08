@@ -1,59 +1,41 @@
 import unittest
-#import reconstruction
 import numpy as np
 import cv2
+from pathlib import Path
 from scipy.spatial.transform import Rotation as spr
-#import reconstruction_utils.utils
 from reconstruction_utils import utils
-#import reconstruction_utils
-
-def rigid_body_parameters_to_matrix(params):
-    """
-    rigid_body_parameters_to_matrix(params)
-    converts a list of rigid body parameters to transformation matrix
-
-    Args:
-        params: list of rigid body parameters
-
-    Returns:
-        4x4 transformation matrix of these parameters
-
-    """
-    matrix = np.eye(4)
-    r = (spr.from_euler('zyx', [params[0], params[1], params[2]], degrees=True)).as_matrix()
-    matrix[0:3, 0:3] = r
-    matrix[0][3] = params[3]
-    matrix[1][3] = params[4]
-    matrix[2][3] = params[5]
-    return matrix
+from reconstruction_utils.utils import rigid_body_parameters_to_matrix
+from common_tests import test_arrays_equal
 
 
 class TestReconstruction(unittest.TestCase):
 
     @classmethod
     def setUpClass(self):
-        self.xy = np.array([
-            [0,10],
-            [2,10],
-            [12,13],
-            [10,79],
-            [10,30],
-            ], dtype='float32')
+        # creating image points example
+        num_points = 10 # how many random points are created to simulate image points
+        project_path = Path(__file__).parent.resolve()
+
+        # loading intrinsics and distortion
+        self.intrinsics = np.loadtxt(f'{project_path}/../calibration/mac_calibration/intrinsics.txt')
+        self.distortion = np.loadtxt(f'{project_path}/../calibration/mac_calibration/distortion.txt')
+        
+        # generating xy random points (image)
+        self.xy  = np.random.uniform(low=0, high=self.intrinsics[1,2], size=(num_points,2))
         
         print('original xy')
         print(f'{self.xy.round()}')
 
-        self.intrinsics = np.loadtxt(f'/Users/aure/Documents/CARES/code/matching/SuperGlue/calibration/mac_calibration/intrinsics.txt')
-        self.distortion = np.loadtxt(f'/Users/aure/Documents/CARES/code/matching/SuperGlue/calibration/mac_calibration/distortion.txt')
-        
         return
 
     def tearDown(self):
         pass
     
 
-
     def test_normalise(self):
+        '''
+        this function tests if normalising the image works (inverse of intrinsics, then uninvert)
+        '''
         normalised_xy = utils.normalise(self.xy, self.intrinsics)
         un_normalised = utils.un_normalise(normalised_xy, self.intrinsics)
         
@@ -61,11 +43,13 @@ class TestReconstruction(unittest.TestCase):
         print(normalised_xy)
         print('un normalised 2')
         print(f'{un_normalised.round()}')
+
+        # testing the two arrays are the same
+        ground_truth = self.xy
+        acual = un_normalised
+
+        test_arrays_equal(ground_truth, acual)
         
-
-
-    
-    
 
 if __name__=='__main__':
     unittest.main()
