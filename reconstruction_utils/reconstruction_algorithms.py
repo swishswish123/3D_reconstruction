@@ -509,19 +509,48 @@ def get_xyz(cam1_coords, camera1_M, camera1_R, camera1_T, cam2_coords, camera2_M
     return D3_points
 
 
+def recover_pose(kp1, kp2, K):
+    
+    E, mask = cv2.findEssentialMat(kp1.T, kp2.T, focal=1.0, pp=(0., 0.), method=cv2.FM_LMEDS, prob=0.999, threshold=3.0)
+    
+    points, R, t, mask = cv2.recoverPose(E, kp1.T, kp2.T)
+    #R1, R2, t = cv2.decomposeEssentialMat(E)
+    
+    return R,t
+
 def estimate_camera_poses(kp1_matched, kp2_matched, K):
-    F, mask = cv2.findFundamentalMat(kp1_matched.T, kp2_matched.T, cv2.FM_RANSAC)
+    #F, _ = cv2.findFundamentalMat(kp1_matched, kp2_matched, cv2.FM_RANSAC)
+    '''
+    F, _ = cv2.findFundamentalMat(kp1_matched.T, kp2_matched.T, cv2.FM_RANSAC)
     if isinstance(F, np.ndarray):
         pass
     else:
         return None
+    '''
+    kp1_norm = cv2.undistortPoints(np.expand_dims(kp1_matched, axis=2), K, None)
+    kp2_norm = cv2.undistortPoints(np.expand_dims(kp2_matched, axis=2), K, None)
 
-    E = np.transpose(K) @ F[:3] @ K
+    # Estimate the essential matrix using the normalized points
+    E, _ = cv2.findEssentialMat(kp1_norm, kp2_norm, K)
 
+    #E = np.transpose(K) @ F[:3] @ K
+    #E = np.matmul(np.matmul(K.T, F), K)
 
-    W = np.array([[0, -1, 0], [1, 0, 0], [0, 0, 1]], dtype=float)
-    _, R, t, mask = cv2.recoverPose(E, kp1_matched.T, kp2_matched.T, K)
+    #E = K.T @ F @ K
+    #E = np.matmul(np.matmul(np.transpose(K), F), K)
 
+    _, R, t, _ = cv2.recoverPose(E, kp1_matched.T, kp2_matched.T, K)
+
+    U, _, Vt = np.linalg.svd(E)
+    W = np.array([[0, -1, 0], [1, 0, 0], [0, 0, 1]])
+    R = np.matmul(np.matmul(U, W), Vt)
+    t = U[:, 2]
+
+    # Check for the correct rotation matrix
+    if np.linalg.det(R) < 0:
+        R = -R
+        t = -t
+    
     return R,t
 
 

@@ -13,14 +13,14 @@ if __name__=='__main__':
     method = 'sksurgery'
     # folder of type of video
     # random / phantom / EM_tracker_calib
-    type='phantom' 
+    type='tests' 
     # folder where image folder located
     # RANDOM, UNDISTORTED: arrow / brain  / checkerboard_test_calibrated / gloves / 
     # RANDOM, Distorted: books / points / spinal_section / spinal_section_pink
     # EM_TRACKING_CALIB testing_points /testing_lines
     # RANDOM, UNDISTORTED WITH MAC: mac_camera
-    # PHANTOM: surface / right_in / phantom_surface_2 / both_mid
-    folder = 'phantom_surface_2'
+    # PHANTOM: surface / right_in / phantom_surface_2 / both_mid / surface_undistorted
+    folder = 'aruCo_vid'
 
     ########################## LOADING ALL ###################################
 
@@ -37,8 +37,8 @@ if __name__=='__main__':
     ########################## REMOVE OUTLIERS ###################################
     
     # find all rows with any col values larger than max_num
-    max_num = 200
-    min_num = -200
+    max_num = 1000
+    min_num = -1000
     df = df.drop(df[ (df['X'] > max_num) | (df['Y'] > max_num) | (df['Z'] > max_num) ].index, inplace=False)
     df = df.drop(df[ (df['X'] < min_num) | (df['Y'] < min_num) | (df['Z'] < min_num) ].index, inplace=False)
 

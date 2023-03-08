@@ -52,6 +52,8 @@ import matplotlib.cm as cm
 import torch
 import glob
 import os
+import cv2
+import copy
 
 from models.matching import Matching
 from models.utils import (compute_pose_error, compute_epipolar_error,
@@ -77,6 +79,7 @@ class DictX(dict):
 
 
 def load_data(type, folder, frame_rate=1):
+    dist_correction = False
     ########################## LOADING ALL ###################################
     project_path = Path(__file__).parent.resolve()
     # where image frames are
@@ -110,13 +113,48 @@ def load_data(type, folder, frame_rate=1):
             # path of img 2
             pth_2 = frames_paths[idx+frame_rate].split('/')[-1]
 
+            ################ CORRECT DISTORTION
+            #if dist_correction:
+
             str = f'{pth_1} {pth_2} 0 0'
             f.write(str)
             f.write('\n')
         f.flush()
         f.close()
     
+    ##################### distortion correction
 
+    if dist_correction:
+        intrinsics = intrinsics = np.loadtxt(f'{project_path}/calibration/endoscope_calibration/intrinsics.txt')
+        distortion = np.loadtxt(f'{project_path}/calibration/endoscope_calibration/distortion.txt')
+    
+        frames_paths = sorted(glob.glob(f'{project_path}/{input_dir}/*.*'))
+        
+        path = Path(f'{input_dir}/undistorted')
+        path.mkdir(exist_ok=True, parents=True)
+        for idx in np.arange(0,len(frames_paths)-1):
+            
+            img = cv2.imread(frames_paths[idx])  
+            #img2_original = cv2.imread(frames_paths[idx+frame_rate]) 
+            # path of img 1
+            pth = frames_paths[idx].split('/')[-1]
+            # path of img 2
+            #pth_2 = frames_paths[idx+frame_rate].split('/')[-1]
+            # only do this the first time
+            h,  w = img.shape[:2]
+            newcameramtx, roi = cv2.getOptimalNewCameraMatrix(intrinsics,distortion,(w,h),1,(w,h))
+            
+            # undistorting images
+            dst = cv2.undistort(copy.deepcopy(img), intrinsics, distortion, None, newcameramtx)
+            #dst2 = cv2.undistort(copy.deepcopy(img2_original) , intrinsics, distortion, None, newcameramtx)
+
+            x, y, w, h = roi
+            img_undistorted = dst[y:y+h, x:x+w]
+            #img2_original = dst2[y:y+h, x:x+w
+            numpy_vertical = np.concatenate((cv2.resize(dst,(w,h)), cv2.resize(img_undistorted,(w,h))))
+            #cv2.imshow('',numpy_vertical)
+            cv2.imwrite(f'{input_dir}/undistorted/{pth}.png', img_undistorted)
+        
     
     opt = {
         'input_pairs':Path(pairs_info),# 'Path to the list of image pairs'
@@ -446,12 +484,12 @@ if __name__ == '__main__':
     ########################## PARAMS ###################################
     # folder of type of video
     # random / phantom / EM_tracker_calib
-    type='random' # phantom / random / EM_tracker_calib
+    type='phantom' # phantom / random / EM_tracker_calib
     # RANDOM, UNDISTORTED: arrow / brain  / checkerboard_test_calibrated / gloves / 
     # RANDOM, Distorted: books / points / spinal_section / spinal_section_pink
     # EM_TRACKING_CALIB testing_points /testing_lines
     # RANDOM, UNDISTORTED WITH MAC: mac_camera
-    folder = 'mac_camera' 
+    folder = 'phantom_surface_2' 
     frame_rate = 1
 
 

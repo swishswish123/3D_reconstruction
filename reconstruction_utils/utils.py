@@ -13,6 +13,67 @@ import sksurgerycore.transforms.matrix as stm
 import match_pairs
 import math
 
+
+
+def solveAXEqualsZero(A):
+    # TO DO: Write this routine - it should solve Ah = 0. You can do this using SVD. Consult your notes! 
+    # Hint: SVD will be involved. 
+    
+    _,_,V = np.linalg.svd(A)
+    h = V.T[:,-1]
+  
+    return h
+
+def calcBestHomography(pts1Cart, pts2Cart):
+    
+    # This function should apply the direct linear transform (DLT) algorithm to calculate the best 
+    # homography that maps the cartesian points in pts1Cart to their corresonding matching cartesian poitns 
+    # in pts2Cart.
+    
+    # This function calls solveAXEqualsZero. Make sure you are wary of how to reshape h into a 3 by 3 matrix. 
+    
+    n_points = pts1Cart.shape[1]
+    
+    # TO DO: replace this:
+    # H = np.identity(3)
+
+    # TO DO: 
+    # First convert points into homogeneous representation
+    # Hint: we've done this before  in the skeleton code we provide.
+    pts1Hom = np.concatenate((pts1Cart, np.ones((1,pts1Cart.shape[1]))), axis=0)
+    pts2Hom = np.concatenate((pts2Cart, np.ones((1,pts2Cart.shape[1]))), axis=0)
+    
+    # Then construct the matrix A, size (n_points * 2, 9)
+    A = np.zeros((n_points*2, 9))
+    
+    row_num = 0
+    
+    # Consult the notes!
+    for idx in range(n_points):
+        u = pts1Hom[0,idx]
+        v = pts1Hom[1,idx]
+        w = pts1Hom[2,idx]
+        
+        x = pts2Hom[0,idx]
+        y = pts2Hom[1,idx]
+        z = pts2Hom[2,idx]
+        
+        first_row = np.array( [0, 0, 0, -u, -v, -w,   y*u,  y*v,  y])
+        second_row = np.array([u, v, w,  0,  0,  0,  -x*u, -x*v, -x])
+         
+        A[row_num,:] = first_row
+        row_num+=1
+        A[row_num,:] = second_row
+        row_num+=1
+        
+    # Solve Ah = 0 using solveAXEqualsZero and get h.
+    h = solveAXEqualsZero(A)
+    
+    # Reshape h into the matrix H, values of h go first into rows of H
+    H = h.reshape((3, 3))
+    
+    return H
+
 def un_normalise(kp_norm, intrinsics):
     kp_hom= kp_norm@intrinsics
     kp_orig = cv2.convertPointsFromHomogeneous(kp_hom).squeeze()
@@ -227,6 +288,7 @@ def get_matched_keypoints_sift(img1_original, img2_original):
 
     # Initiate SIFT detector
     sift = cv2.SIFT_create()
+    #orb = cv2.ORB_create()
 
     # convert 2 images to gray
     img1 = cv2.cvtColor(img1_original, cv2.COLOR_BGR2GRAY)
@@ -236,16 +298,26 @@ def get_matched_keypoints_sift(img1_original, img2_original):
     kp1, des1 = sift.detectAndCompute(img1,None)
     kp2, des2 = sift.detectAndCompute(img2,None)
 
+    # find the keypoints and descriptors with ORB
+    #kp1, des1 = orb.detectAndCompute(img1,None)
+    #kp2, des2 = orb.detectAndCompute(img2,None)
+
     #feature matching
     bf = cv2.BFMatcher()
     matches = bf.knnMatch(des1,des2,k=2)
-
+    '''
+    bf = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
+    matches = bf.match(des1,des2)
+    matches = sorted(matches, key = lambda x:x.distance)
+    '''
     # Apply ratio test
     good_kp1_matched = []
     good_kp2_matched = []
     good = []
+    
     for m,n in matches:
-        if m.distance < 0.75*n.distance:
+        
+        if m.distance < 0.5*n.distance:
             good.append(m)
             # https://stackoverflow.com/questions/30716610/how-to-get-pixel-coordinates-from-feature-matching-in-opencv-python
             # extracting indexes of matched idx from images
@@ -253,12 +325,21 @@ def get_matched_keypoints_sift(img1_original, img2_original):
             img2_idx = m.trainIdx
             good_kp1_matched.append(kp1[img1_idx].pt)
             good_kp2_matched.append(kp2[img2_idx].pt)
-
+    '''
+    for m in matches:
+        img1_idx = m.queryIdx
+        img2_idx = m.trainIdx
+        good_kp1_matched.append(kp1[img1_idx].pt)
+        good_kp2_matched.append(kp2[img2_idx].pt)
+    '''
     # converting to np array
     kp1_matched =  np.asarray(good_kp1_matched) # selecting all indeces that are matches in im1
     kp2_matched =  np.asarray(good_kp2_matched) # selecting points whose indeces are matches in sim2        
     
-    
+    img3 = cv2.drawMatches(img1, kp1, img2, kp2, good, img2, flags=2)
+    #img3 = cv2.drawMatches(img1,kp1,img2,kp2,matches[:50],None,flags=cv2.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS)
+    plt.imshow(img3)
+    plt.savefig('plot.png')
     return kp1_matched, kp2_matched
         
 

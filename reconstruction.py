@@ -15,6 +15,40 @@ from reconstruction_utils.utils import *
 from reconstruction_utils.reconstruction_algorithms import *
 
 
+def interpolate_between_lines(kp1_matched,  kp2_matched):
+    # 0->1
+    # 1->5
+    # 5->3
+    num_interp_pnts = 10
+    interp_between=[[1,0],[5,4], [4,3], [1,5]] # , 
+    new_kp1 = copy.deepcopy(kp1_matched)
+    new_kp2 = copy.deepcopy(kp2_matched)
+
+    for point in interp_between:
+        x1_start, y1_start = kp1_matched[point[0]]
+        x1_end, y1_end = kp1_matched[point[1]]
+
+        x2_start, y2_start = kp2_matched[point[0]]
+        x2_end, y2_end = kp2_matched[point[1]]
+
+        # creating x values to interpolate
+        x1 = np.linspace(x1_start, x1_end, num_interp_pnts)[1:-1]
+        # interpolating to get y of these x points
+        y1 = np.interp(x1, [x1_start,x1_end],[y1_start,y1_end])
+        # stacking and combining
+        new_kp1 = np.concatenate([new_kp1, np.vstack([x1,y1]).T])
+
+        # creating x values to interpolate
+        x2 = np.linspace(x2_start, x2_end, num_interp_pnts)[1:-1]
+        # interpolating to get y of these x points
+        y2 = np.interp(x2, [x2_start,x2_end],[y2_start,y2_end])
+        # stacking and combining
+        new_kp2 = np.concatenate([new_kp2, np.vstack([x2,y2]).T])
+
+    plt.figure()
+    plt.scatter(new_kp1[:,0], new_kp1[:,1])
+    plt.scatter(new_kp2[:,0], new_kp2[:,1])
+    plt.savefig('testing.png')
 
 if __name__=='__main__':
 
@@ -24,8 +58,8 @@ if __name__=='__main__':
     project_path = Path(__file__).parent.resolve()
     
     # CHANGE ME:
-    type='phantom' # random / phantom / EM_tracker_calib
-    folder = 'phantom_surface_2'
+    type='EM_tracker_calib' # random / phantom / EM_tracker_calib
+    folder = 'testing_lines'
     # RANDOM, UNDISTORTED: arrow / brain  / checkerboard_test_calibrated / gloves / 
     # RANDOM UNDISTORTED MAC CAM: mac_camera /
     # RANDOM, Distorted: books / points / spinal_section / spinal_section_pink
@@ -33,12 +67,14 @@ if __name__=='__main__':
     # PHANTOM: surface / right_in / phantom_surface_2 / both_mid
     
     frame_rate = 1
-    TRACKING = True
+    TRACKING = 'EM'
+    
     intrinsics = np.loadtxt(f'{project_path}/calibration/endoscope_calibration/intrinsics.txt')
     distortion = np.loadtxt(f'{project_path}/calibration/endoscope_calibration/distortion.txt')
     
-    matching_method = 'sift' # sift / superglue
-    dist_correction = True
+    matching_method = 'superglue' # sift / superglue
+    dist_correction = False
+    
     ######################## PERFORMING SUPERGLUE MATCHING ########################################
     if matching_method == 'superglue':
         match_pairs.superglue(type, folder, frame_rate=frame_rate)
@@ -55,13 +91,17 @@ if __name__=='__main__':
     frames_pth = sorted(glob.glob(f'{camera_info}/images/*.*'))
 
     # if we are tracking we need to load camera info
-    if TRACKING:
+    if TRACKING=='EM':
         # camera poses
         poses = np.load(f'{camera_info}/vecs.npy')
         # timestamps
         times = np.load(f'{camera_info}/times.npy')
         # calibration data
         hand_eye = np.load(f'calibration/endoscope_calibration/h2e.npy')
+    
+    elif TRACKING=='aruCo':
+        rvecs = np.load(f'{camera_info}/rvecs.npy')
+        tvecs = np.load(f'{camera_info}/tvecs.npy')
 
     # path where to save reconstructions
     reconstruction_output = f'{project_path}/reconstructions/{method}/{type}/{folder}'
@@ -83,7 +123,7 @@ if __name__=='__main__':
         # image number (eg. 00000001)- excluding extension
         im1 = im1_path.split('/')[-1][:-4]
         im2 = im2_path.split('/')[-1][:-4]
-        # loading images    
+        # loading images    ############################################
         img1_original = cv2.imread(im1_path)  
         img2_original = cv2.imread(im2_path) 
         
@@ -120,10 +160,22 @@ if __name__=='__main__':
             kp1_matched, kp2_matched = get_matched_keypoints_sift(img1_original, img2_original)
         
         ############################ IMAGE POSES ################################
-        if TRACKING:
+        if TRACKING=='EM':
             # loading poses information of current img pairs
             im1_poses =  poses[idx]  #@ original_point 
-            im2_poses =  poses[idx+1] #@ unit_vec
+            im2_poses =  poses[idx+frame_rate] #@ unit_vec
+        elif TRACKING == 'aruCo':
+            im0_mat = rigid_body_parameters_to_matrix(np.concatenate([rvecs[0], tvecs[0]]))
+            im1_mat = rigid_body_parameters_to_matrix(np.concatenate([rvecs[idx], tvecs[idx]]))
+            im2_mat = rigid_body_parameters_to_matrix(np.concatenate([rvecs[idx+frame_rate], tvecs[idx+frame_rate]]))
+
+            im1_mat = im1_mat @  np.linalg.inv(im0_mat) 
+            im2_mat =  im2_mat @ np.linalg.inv(im0_mat) 
+        else:
+            R,t = estimate_camera_poses(kp1_matched.T, kp2_matched.T, intrinsics)
+            im1_poses = rigid_body_parameters_to_matrix([0,0,0,0,0,0])
+            im2_poses = np.hstack([R,t])
+            im2_poses = np.vstack([im2_poses,np.array([0,0,0,1])])
 
         imageSize = img1_original.shape
 
@@ -174,8 +226,14 @@ if __name__=='__main__':
             # relative position between the two is going from the first image to the origin, then from origin to the second image
             #T_1_to_2 =   np.linalg.inv(hand_eye) @ im1_poses @ np.linalg.inv(im2_poses) @ hand_eye
             #T_1_to_2 =   np.linalg.inv(hand_eye) @ im1_poses @ np.linalg.inv(im2_poses) @ np.linalg.inv(hand_eye)
-            T_1_to_2 =  np.linalg.inv(im2_poses) @ im1_poses
-            T_1_to_2 = hand_eye@np.linalg.inv(im2_poses) @ im1_poses@np.linalg.inv(hand_eye)
+            #T_1_to_2 =  np.linalg.inv(im2_poses) @ im1_poses
+
+            if TRACKING=='EM':
+                T_1_to_2 =  hand_eye@np.linalg.inv(im2_poses) @ im1_poses @  np.linalg.inv(hand_eye)
+            else:
+                im1_poses = rigid_body_parameters_to_matrix([0,0,0,0,0,0])
+                T_1_to_2 = np.linalg.inv(im1_mat) @ im2_mat # np.linalg.inv(im2_mat) @ im1_mat
+            #T_1_to_2 = hand_eye@np.linalg.inv(im2_poses) @ im1_poses@np.linalg.inv(hand_eye)
 
             # extracting R and T vectors 
             params = extract_rigid_body_parameters(T_1_to_2)
@@ -212,6 +270,7 @@ if __name__=='__main__':
             D3_points_all += D3_points
             # selecting colors from first image
             D3_colors_all += np.ndarray.tolist(D3_colors)
+        
         if cv2.waitKey(1) & 0xFF==ord('q'):
             cv2.destroyAllWindows()
             break
