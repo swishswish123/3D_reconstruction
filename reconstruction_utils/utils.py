@@ -12,8 +12,41 @@ from scipy.spatial.transform import Rotation as spr
 import sksurgerycore.transforms.matrix as stm
 import match_pairs
 import math
+import copy
 
+def interpolate_between_lines(kp1_matched,  kp2_matched, interp_between = [[1,0],[5,4], [4,3], [1,5]], num_interp_pnts = 10):
+    # 0->1
+    # 1->5
+    # 5->3
+    new_kp1 = copy.deepcopy(kp1_matched)
+    new_kp2 = copy.deepcopy(kp2_matched)
 
+    for point in interp_between:
+        x1_start, y1_start = kp1_matched[point[0]]
+        x1_end, y1_end = kp1_matched[point[1]]
+
+        x2_start, y2_start = kp2_matched[point[0]]
+        x2_end, y2_end = kp2_matched[point[1]]
+
+        # creating x values to interpolate
+        x1 = np.linspace(x1_start, x1_end, num_interp_pnts)[1:-1]
+        # interpolating to get y of these x points
+        y1 = np.interp(x1, [x1_start,x1_end],[y1_start,y1_end])
+        # stacking and combining
+        new_kp1 = np.concatenate([new_kp1, np.vstack([x1,y1]).T])
+
+        # creating x values to interpolate
+        x2 = np.linspace(x2_start, x2_end, num_interp_pnts)[1:-1]
+        # interpolating to get y of these x points
+        y2 = np.interp(x2, [x2_start,x2_end],[y2_start,y2_end])
+        # stacking and combining
+        new_kp2 = np.concatenate([new_kp2, np.vstack([x2,y2]).T])
+
+    plt.figure()
+    plt.scatter(new_kp1[:,0], new_kp1[:,1])
+    plt.scatter(new_kp2[:,0], new_kp2[:,1])
+    plt.savefig('testing.png')
+    return new_kp2
 
 def solveAXEqualsZero(A):
     # TO DO: Write this routine - it should solve Ah = 0. You can do this using SVD. Consult your notes! 
@@ -274,6 +307,13 @@ def skew(x):
 
 
 def get_matched_keypoints_superglue(pair_match):
+    '''
+    function to get keypoints from superglue
+    input:
+        - pair_match: npz file of image pairs
+    output:
+        - kp1_matched, kp2_matched: np arrays of marched points
+    '''
     # MATCHES info of the two images
     npz = np.load( pair_match )
 

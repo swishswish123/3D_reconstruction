@@ -8,63 +8,42 @@ from scipy.spatial.transform import Rotation as spr
 import math
 import matplotlib.pyplot as plt
 from pathlib import Path
+from common_tests import test_arrays_equal
 
 class TestReconstruction(unittest.TestCase):
 
     @classmethod
     def setUpClass(self):
+        # loading intrinsics, distortion
         project_path = Path(__file__).parent.resolve()
         self.intrinsics = np.loadtxt(f'{project_path}/../calibration/mac_calibration/intrinsics.txt')
         self.distortion = np.loadtxt(f'{project_path}/../calibration/mac_calibration/distortion.txt')
          
         # defining 3d world coordinate points
-        '''
-        self.xyz  = np.array([[940, 530, 50],
-                              [5.0, 10., 20.0],
-                              [500.0, 110., 20.0],
-                              [56.0, 0.8, 21.0],
-                              [5.0, 8, 20],
-                              [1,2,3],
-                              [5.0, 8, 20],
-                              [100,200,300],
-                              [5.0, 8, 20],
-                              [10,2.8,30],
-                              [5.0, 8, 20],
-                              [5,9,10]
-                                ]) # define an arbitrary 3D point in world coordinates
-        '''
         self.xyz  = np.random.uniform(low=0, high=self.intrinsics[1,2], size=(5000,3))
         # converting to homogenous
         self.xyz_hom = cv2.convertPointsToHomogeneous(self.xyz).squeeze()
 
-        print('original xyz')
-        #print(f'{self.xyz_hom.round()}')
-        
         # defining extrinsics of two camera views
         self.rvec_1 = np.zeros(3)
         self.tvec_1 = np.zeros(3)
 
         self.rvec_2 = np.zeros(3)
-        self.tvec_2 = np.zeros(3)
-        # x,y,z translation of second img
+        self.tvec_2 = np.zeros(3) # x,y,z translation of second img
         self.tvec_2[0] = 110   #x
-        self.tvec_2[1] = 100  #y
+        self.tvec_2[1] = 100   #y
         self.tvec_2[2] = 200   #z
 
-
-        self.T_1_to_2 = np.array([
-            [1,0,0,self.tvec_2[0]],
-            [0,1,0,self.tvec_2[1]],
-            [0,0,1,self.tvec_2[2]],
-            [0,0,0,1]
-        ])
+        # transform between two camera views
+        mat1 = rigid_body_parameters_to_matrix(np.concatenate([self.rvec_1, self.tvec_1])) 
+        mat2 = rigid_body_parameters_to_matrix(np.concatenate([self.rvec_2, self.tvec_2])) 
+        self.T_1_to_2 = mat2 @ np.linalg.inv(mat1) 
 
         return
 
     def tearDown(self):
         pass
     
-
     def test_projection_matrices(self):
         print('TESTING OPENCV AND PROJECTION IS THE SAME')
         # testing if projection using opencv method and proj matrices same
@@ -90,11 +69,12 @@ class TestReconstruction(unittest.TestCase):
         print('image 2 points')
         print(image2_points)
         print(im2.T)
-        '''
+        
         plt.figure()
         plt.scatter(image1_points[:,0], image1_points[:,1])
         plt.scatter(im1[0], im1[1])
         plt.savefig("mygraph.png")
+        '''
 
 
     def test_projection_loop(self):
@@ -169,23 +149,13 @@ class TestReconstruction(unittest.TestCase):
         im1_poses = rigid_body_parameters_to_matrix(np.concatenate((self.rvec_1,self.tvec_1)))
         im2_poses = rigid_body_parameters_to_matrix(np.concatenate((self.rvec_2,self.tvec_2)))
 
-        #im1_norm = np.matmul(np.linalg.inv(self.intrinsics), self.image1_points)
-        #im2_norm = np.matmul(np.linalg.inv(self.intrinsics), self.image2_points)
-        #result = reconstruction.triangulate_points_opencv_2(image1_points, image2_points, self.intrinsics, self.T_1_to_2,  im1_poses, im2_poses,  self.distortion)
         result = triangulate_points_opencv_2(image1_points, image2_points, self.intrinsics,self.rvec_1,self.rvec_2, self.tvec_1, self.tvec_2, T_1_to_2=self.T_1_to_2, poses1=im1_poses, poses2=im2_poses,  distortion=self.distortion)
         result = result.T
         print('recon ')
-        #print(f'{result.round()}')
-        #result=result.T
-        #self.assertEqual( round(result[0][0]), self.xyz[0][0])
-        #self.assertEqual( round(result[0][1]), self.xyz[0][1])
-        for row, point_x in enumerate(self.xyz):
-            #print(point_x)
-            for col, original in enumerate(point_x):
-                self.assertEqual( round(result[row,col]), round(original))
-                self.assertEqual( round(result[row,col]), round(original))
-                self.assertEqual( round(result[row,col]), round(original))
 
+        test_arrays_equal(self.xyz, result)
+
+    
 
     def test_pose_estimation(self):
         P0, P1 = get_projection_matrices(self.rvec_1,self.rvec_2, self.tvec_1, self.tvec_2, self.intrinsics)
