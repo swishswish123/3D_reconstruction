@@ -43,3 +43,10 @@ Run `match_pairs.py` to get the matches- this will appear under 'outputs' folder
 To visualise results:
 6. open plot_reconstruction and change the type and folder to be the same as in reconstruction.py
 7. run plot_reconstruction.py
+
+
+
+For running tests:
+Run setup file for importing modules
+
+`pip install -e .`

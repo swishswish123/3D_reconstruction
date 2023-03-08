@@ -8,5 +8,10 @@ NumPy >= 1.18
 scipy
 pandas
 scikit-surgerycore
+
+# plot
 plotly
 open3d
+
+# recording 
+scikit-surgerynditracker

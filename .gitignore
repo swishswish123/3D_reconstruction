@@ -9,3 +9,4 @@ pairs/
 __pycache__/
 reconstructions/
 other_attempts_or_files/
+*.egg-info/

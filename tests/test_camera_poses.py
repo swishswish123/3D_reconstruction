@@ -15,8 +15,8 @@ from pathlib import Path
 def test_camera_poses():
 
     project_path = Path(__file__).parent.resolve()
-    K = np.loadtxt(f'{project_path}/calibration/mac_calibration/intrinsics.txt')
-    distortion = np.loadtxt(f'{project_path}/calibration/mac_calibration/distortion.txt')
+    K = np.loadtxt(f'{project_path}/../calibration/mac_calibration/intrinsics.txt')
+    distortion = np.loadtxt(f'{project_path}/../calibration/mac_calibration/distortion.txt')
     
     # 3D world points
     #xyz  = np.random.uniform(low=0, high=K[1,2], size=(100,3))
