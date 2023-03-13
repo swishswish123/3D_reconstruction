@@ -230,7 +230,7 @@ def triangulate_points_opencv(kp1_matched, kp2_matched, intrinsics,rvec_1,rvec_2
     res_1 = cv2.triangulatePoints(P0, P1, kp1_matched, kp2_matched) 
     res_1 = res_1[:3] / res_1[3, :]
 
-    return res_1
+    return res_1.T
 
 def triangulate_points_sksurgery(input_undistorted_points,
                               left_camera_intrinsic_params,
