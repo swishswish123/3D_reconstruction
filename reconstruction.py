@@ -18,17 +18,100 @@ from reconstruction_utils.utils import *
 from reconstruction_utils.reconstruction_algorithms import *
 from reconstruction_utils.utils import interpolate_between_lines
 
+import cv2
+import numpy as np
+from matplotlib import pyplot as plt
+import matplotlib as mpl
+
+def match_features(img1, img2):
+    # Plot images side by side
+    fig, ax = plt.subplots(1, 2)
+    ax[0].imshow(img1)
+    ax[1].imshow(img2)
+    plt.show(block=False)
+
+    # Select matching points
+    matches = []
+    fig.canvas.set_window_title('Click on matching points. Close the window when finished.')
+    for i in range(4):
+        fig.canvas.manager.window.activateWindow()
+        fig.canvas.manager.window.raise_()
+        pts = plt.ginput(n=1, timeout=0, show_clicks=True)
+        matches.append(pts)
+
+    # Convert matching points to pixel coordinates
+    matches = np.array(matches)
+    matches = matches.astype(int)
+
+    # Save matches as np arrays
+    #np.save('matches_img1.npy', matches[0])
+    #np.save('matches_img2.npy', matches[1])
+
+    return matches
+
+
+def select_matches(img1, img2):
+
+
+
+    # Define a callback function for mouse clicks
+    matches = []
+
+    def onclick(event):
+        # Check which axes was clicked
+        if event.inaxes == ax[0]:
+            print('point 1')
+            matches.append([event.xdata, event.ydata, None, None])
+            ax[0].scatter(event.xdata, event.ydata, marker='+', s=100, color='red')
+            plt.draw()
+        elif event.inaxes == ax[1]:
+            print('point 2')
+            matches[-1][2:] = [event.xdata, event.ydata]
+            ax[1].scatter(event.xdata, event.ydata, marker='+', s=100, color='red')
+            plt.draw()
+
+    #fig, ax = plt.subplots(1, 2, figsize=(10, 5))
+    # Attach the callback function to the figure
+    #fig.canvas.mpl_connect('button_press_event', onclick)
+
+    # Wait for the user to close the plot
+    # Display the images side by side
+    fig, ax = plt.subplots(1, 2, figsize=(10, 5))
+    #mpl.use('TkAgg')
+    ax[0].imshow(img1)
+    ax[1].imshow(img2)
+
+
+    fig.canvas.mpl_connect('button_press_event', onclick)
+
+    plt.show()
+
+    #fig.canvas.mpl_connect('button_press_event', onclick)
+
+    # Convert the matches to numpy arrays
+    matches = np.array(matches)
+
+    #[381, 500] [192,324]
+    #[1825,500] [1282,580]
+    # 500,847]  [290, 608]
+    # [1705, 815] [1184, 993]
+    # [708,673]   [372,500]
+    #[708,488] [323, 346]
+    # [975,482], [497, 368]
+    #
+    return matches[:, :2], matches[:, 2:]
 
 if __name__=='__main__':
     project_path = Path(__file__).parent.resolve()
+    mpl.use('TkAgg')
 
     ########################## PARAMS ###################################
     # method of performing 3D reconstruction
     method ='opencv' # opencv/sksurgery/online/prince
     # parent folder of data type
-    type='tests' # random / phantom / EM_tracker_calib /tests
+    type='aruco' # random / phantom / EM_tracker_calib /tests
     # folder right on top of images
-    folder = 'aruCo'
+    folder = 'shelves_3'
     # RANDOM, UNDISTORTED: arrow / brain  / checkerboard_test_calibrated / gloves / 
     # RANDOM UNDISTORTED MAC CAM: mac_camera /
     # RANDOM, Distorted: books / points / spinal_section / spinal_section_pink
@@ -47,7 +130,7 @@ if __name__=='__main__':
     distortion = np.loadtxt(f'{project_path}/calibration/mac_calibration/distortion.txt')
     
     # method of getting keypoints and matching between frames
-    matching_method = 'superglue' # sift / superglue
+    matching_method = 'ground_truth' # sift / superglue /gt
     
     # perform distortion correction on image or not
     dist_correction = False
@@ -99,8 +182,8 @@ if __name__=='__main__':
             print(f'image {idx}')
         # jpg frames path of two matched pairs
         ##################### 1)))))))))))))))))
-        #im1_path = frames_pth[idx]
-        im1_path = frames_pth[0]
+        im1_path = frames_pth[idx]
+        #im1_path = frames_pth[0]
         im2_path = frames_pth[idx+frame_rate]
 
         # image number (eg. 00000001)- excluding extension
@@ -109,32 +192,7 @@ if __name__=='__main__':
         # loading images    ############################################
         img1_original = cv2.imread(im1_path)  
         img2_original = cv2.imread(im2_path) 
-        
-        if dist_correction:
-            # only do this the first time
-            h,  w = img1_original.shape[:2]
-            newcameramtx, roi = cv2.getOptimalNewCameraMatrix(intrinsics,distortion,(w,h),1,(w,h))
-            
-            # undistorting images
-            
-            #mapx,mapy = cv2.initUndistortRectifyMap(intrinsics,distortion,None,newcameramtx,(w,h),5)
-            #dst1 = cv2.remap(img1_original,mapx,mapy,cv2.INTER_LINEAR)
 
-            dst1 = cv2.undistort(copy.deepcopy(img1_original), intrinsics, distortion, None, newcameramtx)
-            dst2 = cv2.undistort(copy.deepcopy(img2_original) , intrinsics, distortion, None, newcameramtx)
-
-            x, y, w, h = roi
-            img1_original = dst1[y:y+h, x:x+w]
-            img2_original = dst2[y:y+h, x:x+w]
-
-            
-            #dst2 = cv2.remap(img2_original,mapx,mapy,cv2.INTER_LINEAR)
-
-            #undistorted = undistorted[y:y+h, x:x+w]
-            #undistorted_2 = undistorted_2[y:y+h, x:x+w]
-            numpy_vertical = np.concatenate((cv2.resize(dst1,(w,h)), cv2.resize(img1_original,(w,h))))
-            cv2.imshow('',numpy_vertical)
-        
         ############################### MATCHING ##########################
         # obtaining or loading keypoints between images 
         # kpn_matched will be (N*2)
@@ -142,7 +200,17 @@ if __name__=='__main__':
             kp1_matched, kp2_matched = get_matched_keypoints_superglue(f'{output_dir}/{im1}_{im2}_matches.npz')
         elif matching_method == 'sift':
             kp1_matched, kp2_matched = get_matched_keypoints_sift(img1_original, img2_original)
-
+        elif matching_method =='ground_truth':
+            # kp1_matched =np.array([
+            #         [],
+            #         [],
+            #     ])
+            # kp2_matched = np.array([
+            #     [],
+            #     [],
+            # ])
+            kp1_matched, kp2_matched = select_matches(img1_original, img2_original)
+            print(kp1_matched, kp2_matched)
         # if no matches found skip to next frame pair, otherwise undistort kpts
         if np.size(kp1_matched)==0:
             print('no matches')
@@ -166,23 +234,24 @@ if __name__=='__main__':
         if TRACKING=='EM':
             # selecting poses information of current img pairs
             ################## 2))))))))))))))
-            #im1_poses =  poses[idx]
-            im1_poses = poses[0]
+            im1_poses =  poses[idx]
+            #im1_poses = poses[0]
             im2_poses =  poses[idx+frame_rate] 
             # getting relative transform between two camera poses
             # relative position between the two is going from the first image to the origin,
             # then from origin to the second image
             T_1_to_2 =  hand_eye@np.linalg.inv(im2_poses) @ im1_poses @  np.linalg.inv(hand_eye)
-            
+
         elif TRACKING == 'aruCo':
             # selecting poses of aruco of current frame pair and converting to 4x4 matrix
             ################## 3)))))))))))))))))))
-            #im1_mat = rigid_body_parameters_to_matrix(np.concatenate([rvecs[idx], tvecs[idx]])) #(4x4)
-            im1_mat = rigid_body_parameters_to_matrix(np.concatenate([rvecs[0], tvecs[0]]))  # (4x4)
+            im1_mat = rigid_body_parameters_to_matrix(np.concatenate([rvecs[idx], tvecs[idx]])) #(4x4)
+            #im1_mat = rigid_body_parameters_to_matrix(np.concatenate([rvecs[0], tvecs[0]]))  # (4x4)
             im2_mat = rigid_body_parameters_to_matrix(np.concatenate([rvecs[idx+frame_rate], tvecs[idx+frame_rate]])) #(4x4)
             # relative transform between two camera poses
-            T_1_to_2 = np.linalg.inv(im2_mat) @ im1_mat # (4x4)
-            
+            # T_1_to_2 = np.linalg.inv(im2_mat) @ im1_mat # (4x4)
+            T_1_to_2 =   np.linalg.inv(im2_mat) @ im1_mat
+
             # rotation and translation vectors between two frames in euler angles
             params = extract_rigid_body_parameters(T_1_to_2) # (list of length 6 )
             rvec_2 = params[:3] # list of len 3
@@ -208,7 +277,7 @@ if __name__=='__main__':
             triangulate with opencv function
             '''
             
-            D3_points  = triangulate_points_opencv(kp1_matched, kp2_matched, intrinsics, rvec_1, rvec_2, tvec_1, tvec_2) # (3xN)
+            D3_points = triangulate_points_opencv(kp1_matched, kp2_matched, intrinsics, rvec_1, rvec_2, tvec_1, tvec_2) # (3xN)
             # saving 3D points and colours to array of all pointcloud
             D3_points_all += np.ndarray.tolist(D3_points) # (NX3)
             D3_colors_all += np.ndarray.tolist(D3_colors) # (NX3)

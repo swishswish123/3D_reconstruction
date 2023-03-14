@@ -10,17 +10,17 @@ if __name__=='__main__':
 
     # method reconstruction was performed with:
     # sksurgery/ online/ prince /method_3 
-    method = 'sksurgery'
+    method = 'opencv'
     # folder of type of video
     # random / phantom / EM_tracker_calib
-    type='tests' 
+    type='aruco'
     # folder where image folder located
     # RANDOM, UNDISTORTED: arrow / brain  / checkerboard_test_calibrated / gloves / 
     # RANDOM, Distorted: books / points / spinal_section / spinal_section_pink
     # EM_TRACKING_CALIB testing_points /testing_lines
     # RANDOM, UNDISTORTED WITH MAC: mac_camera
     # PHANTOM: surface / right_in / phantom_surface_2 / both_mid / surface_undistorted
-    folder = 'aruCo_vid'
+    folder = 'shelves_3'
 
     ########################## LOADING ALL ###################################
 
@@ -45,11 +45,11 @@ if __name__=='__main__':
     ########################## PLOTTING ###################################
 
     # plot scatter graph with colors
-    trace = go.Scatter3d(x=df.X*10,
-                      y=df.Y*10,
-                      z=df.Z*10,
+    trace = go.Scatter3d(x=df.X,
+                      y=df.Y,
+                      z=df.Z,
                       mode='markers',
-                      marker=dict(size=3,
+                      marker=dict(size=4,
                                   color=['rgb({},{},{})'.format(r,g,b) for r,g,b in zip(df.R.values, df.G.values, df.B.values)],
                                   opacity=0.9,)
                                   )
