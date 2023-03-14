@@ -176,7 +176,8 @@ def test_aroCo_poses(project_path):
     poses_1 = rigid_body_parameters_to_matrix(np.concatenate([im1_R, im1_T]))
     poses_2 = rigid_body_parameters_to_matrix(np.concatenate([im2_R, im2_T]))
     # 4x4 to get from cam1 position to cam2 position
-    T_1_to_T_2 = np.linalg.inv(poses_2) @ poses_1
+    #T_1_to_T_2 = np.linalg.inv(poses_2) @ poses_1
+    T_1_to_T_2 = poses_2 @ np.linalg.inv(poses_1)
 
     # For keypoints matching definitions I looked at the image and got the points
     # in interactive mode. If you want to look at the image uncomment the lines below

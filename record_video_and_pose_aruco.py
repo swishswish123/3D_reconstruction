@@ -113,7 +113,6 @@ if __name__=='__main__':
 
     intrinsics = np.loadtxt(f'{project_path}/calibration/mac_calibration/intrinsics.txt')
     distortion = np.loadtxt(f'{project_path}/calibration/mac_calibration/distortion.txt')
-    
 
     arucoDict = cv2.aruco.Dictionary_get(cv2.aruco.DICT_4X4_50)
     arucoParams = cv2.aruco.DetectorParameters_create()

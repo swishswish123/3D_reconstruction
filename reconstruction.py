@@ -102,6 +102,21 @@ def select_matches(img1, img2):
     return matches[:, :2], matches[:, 2:]
 
 if __name__=='__main__':
+    '''
+    method leave as 'opencv'
+
+    type is the parent folder of the data (right under assets)
+    folder is the name of the folder right under assets but on top of your image folder
+    so it would be:
+    
+    superglue/assets/{type}/{folder}/images
+
+    frame rate leave as 1
+    
+    tracking leave as aruCo
+    
+    
+    '''
     project_path = Path(__file__).parent.resolve()
     mpl.use('TkAgg')
 
@@ -111,7 +126,7 @@ if __name__=='__main__':
     # parent folder of data type
     type='aruco' # random / phantom / EM_tracker_calib /tests
     # folder right on top of images
-    folder = 'shelves_3'
+    folder = 'shelves_2'
     # RANDOM, UNDISTORTED: arrow / brain  / checkerboard_test_calibrated / gloves / 
     # RANDOM UNDISTORTED MAC CAM: mac_camera /
     # RANDOM, Distorted: books / points / spinal_section / spinal_section_pink
@@ -130,7 +145,10 @@ if __name__=='__main__':
     distortion = np.loadtxt(f'{project_path}/calibration/mac_calibration/distortion.txt')
     
     # method of getting keypoints and matching between frames
-    matching_method = 'ground_truth' # sift / superglue /gt
+    # sift- sift for feature matching
+    # superglue- uses superglue for feature matching
+    # ground_truth- you will manually label corresponding points between frames
+    matching_method = 'superglue' # sift / superglue /ground_truth
     
     # perform distortion correction on image or not
     dist_correction = False
@@ -216,6 +234,12 @@ if __name__=='__main__':
             print('no matches')
             continue
 
+        ####################### GETTING COLOR OF POINTS ###############################################
+        # selecting colors of keypoints which will be triangulated
+        input_undistorted_points = np.concatenate([kp1_matched, kp2_matched], axis=1)
+        input_undistorted_points = input_undistorted_points.astype(int)  # converting to integer
+        D3_colors = img1_original[input_undistorted_points[:, 1], input_undistorted_points[:,0]]  # (Nx3)- where N is same as kp_matched N
+
         # undistort keypoints
         kp1_matched = cv2.undistortPoints(kp1_matched.astype('float32'), intrinsics, distortion, None,
                                                              intrinsics)
@@ -245,32 +269,28 @@ if __name__=='__main__':
         elif TRACKING == 'aruCo':
             # selecting poses of aruco of current frame pair and converting to 4x4 matrix
             ################## 3)))))))))))))))))))
-            im1_mat = rigid_body_parameters_to_matrix(np.concatenate([rvecs[idx], tvecs[idx]])) #(4x4)
+            im1_mat = extrinsic_vecs_to_matrix(rvecs[idx], tvecs[idx]) #(4x4)
             #im1_mat = rigid_body_parameters_to_matrix(np.concatenate([rvecs[0], tvecs[0]]))  # (4x4)
-            im2_mat = rigid_body_parameters_to_matrix(np.concatenate([rvecs[idx+frame_rate], tvecs[idx+frame_rate]])) #(4x4)
+            im2_mat = extrinsic_vecs_to_matrix(rvecs[idx+frame_rate], tvecs[idx+frame_rate]) #(4x4)
             # relative transform between two camera poses
             # T_1_to_2 = np.linalg.inv(im2_mat) @ im1_mat # (4x4)
             T_1_to_2 =   np.linalg.inv(im2_mat) @ im1_mat
 
             # rotation and translation vectors between two frames in euler angles
-            params = extract_rigid_body_parameters(T_1_to_2) # (list of length 6 )
-            rvec_2 = params[:3] # list of len 3
-            tvec_2 = params[3:] # list of len 3
+            #params = extract_rigid_body_parameters(T_1_to_2) # (list of length 6 )
+            rvec_2, tvec_2 = extrinsic_matrix_to_vecs(T_1_to_2)
+            #rvec_2 = params[:3] # list of len 3
+            #tvec_2 = params[3:] # list of len 3
         else:
             # estimating camera poses
             R,t = estimate_camera_poses(kp1_matched, kp2_matched, intrinsics)
-            im1_poses = rigid_body_parameters_to_matrix([0,0,0,0,0,0])
+            im1_poses = extrinsic_vecs_to_matrix([0,0,0],[0,0,0])
             im2_poses = np.hstack([R,t])
             im2_poses = np.vstack([im2_poses,np.array([0,0,0,1])])
 
         imageSize = img1_original.shape
         
-        ####################### GETTING COLOR OF POINTS ###############################################
-        # selecting colors of keypoints which will be triangulated
-        input_undistorted_points = np.concatenate([kp1_matched.T,kp2_matched.T],axis=1)
-        input_undistorted_points=input_undistorted_points.astype(int) # converting to integer
-        D3_colors = img1_original[ input_undistorted_points[:,1],input_undistorted_points[:,0]] # (Nx3)- where N is same as kp_matched N
-        
+
         ######################### TRIANGULATION- GETTING 3D POINTS ##################################
         if method == 'opencv':
             '''
@@ -294,9 +314,9 @@ if __name__=='__main__':
         elif method=='sksurgery':
 
             # extracting R and T vectors 
-            params = extract_rigid_body_parameters(T_1_to_2)
+            r, t = extrinsic_matrix_to_vecs(T_1_to_2)
             R = T_1_to_2[:3,:3]
-            T = np.array([params[3:]]).T
+            T = np.array([t[3:]]).T
             D3_points = triangulate_points_sksurgery(input_undistorted_points, intrinsics, intrinsics, R, T)
             D3_points_all += np.ndarray.tolist(D3_points.T)
             D3_colors_all += np.ndarray.tolist(D3_colors)

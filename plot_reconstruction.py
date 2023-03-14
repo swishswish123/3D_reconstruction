@@ -20,7 +20,7 @@ if __name__=='__main__':
     # EM_TRACKING_CALIB testing_points /testing_lines
     # RANDOM, UNDISTORTED WITH MAC: mac_camera
     # PHANTOM: surface / right_in / phantom_surface_2 / both_mid / surface_undistorted
-    folder = 'shelves_3'
+    folder = 'shelves_2'
 
     ########################## LOADING ALL ###################################
 

@@ -13,6 +13,7 @@ import sksurgerycore.transforms.matrix as stm
 import match_pairs
 import math
 import copy
+import sksurgerycore.transforms.matrix as skcm
 
 def interpolate_between_lines(kp1_matched,  kp2_matched, interp_between = [[1,0],[5,4], [4,3], [1,5]], num_interp_pnts = 10):
     # 0->1
@@ -121,65 +122,48 @@ def normalise(kp_matched, intrinsics):
     kp_matched = cv2.convertPointsFromHomogeneous(kp_matched_hom).squeeze()
     return kp_matched
 
-
-def rigid_body_parameters_to_matrix(params):
+def extrinsic_vecs_to_matrix(rvec, tvec):
     """
-    rigid_body_parameters_to_matrix(params)
-    converts a list of rigid body parameters to transformation matrix
-
-    Args:
-        params: list of rigid body parameters
-
-    Returns:
-        4x4 transformation matrix of these parameters
-
+    Method to convert rvec and tvec to a 4x4 matrix.
+    :param rvec: [3x1] ndarray, Rodrigues rotation params
+    :param rvec: [3x1] ndarray, translation params
+    :return: [3x3] ndarray, Rotation Matrix
     """
-    matrix = np.eye(4)
-    r = (spr.from_euler('zyx', [params[0], params[1], params[2]], degrees=True)).as_matrix()
-    matrix[0:3, 0:3] = r
-    matrix[0][3] = params[3]
-    matrix[1][3] = params[4]
-    matrix[2][3] = params[5]
-    return matrix
+    rotation_matrix = (cv2.Rodrigues(rvec))[0]
+    transformation_matrix = \
+        skcm.construct_rigid_transformation(rotation_matrix, tvec)
+    return transformation_matrix
 
-def eulerAnglesToRotationMatrix( theta) :
-    R_x = np.array([[1,         0,                  0                   ],
-                    [0,         math.cos(theta[0]), -math.sin(theta[0]) ],
-                    [0,         math.sin(theta[0]), math.cos(theta[0])  ]
-                    ])    
-
-    R_y = np.array([[math.cos(theta[1]),    0,      math.sin(theta[1])  ],  
-                    [0,                     1,      0                   ],
-                    [-math.sin(theta[1]),   0,      math.cos(theta[1])  ]
-                    ])
-
-    R_z = np.array([[math.cos(theta[2]),    -math.sin(theta[2]),    0], 
-                    [math.sin(theta[2]),    math.cos(theta[2]),     0], 
-                    [0,                     0,                      1]
-                    ])    
-
-    R = np.dot(R_z, np.dot( R_y, R_x ))
-
-    return R
-
-
+def extrinsic_matrix_to_vecs(transformation_matrix):
+    """
+    Method to convert a [4x4] rigid body matrix to an rvec and tvec.
+    :param transformation_matrix: [4x4] rigid body matrix.
+    :return [3x1] Rodrigues rotation vec, [3x1] translation vec
+    """
+    rmat = transformation_matrix[0:3, 0:3]
+    rvec = (cv2.Rodrigues(rmat))[0]
+    tvec = np.ones((3, 1))
+    tvec[0:3, 0] = transformation_matrix[0:3, 3]
+    return rvec, tvec
 
 def get_projection_matrices(rvec_1,rvec_2, tvec_1, tvec_2, K):
-    #hom_xyz = cv2.convertPointsToHomogeneous(self.xyz).squeeze().T
 
-    T0 = np.array(tvec_1) # Translation vector
-    R0 = eulerAnglesToRotationMatrix(rvec_1) # Rotation matrix:
-    RT0 = np.zeros((3,4))  # combined Rotation/Translation matrix
-    RT0[:3,:3] = R0
-    RT0[:3, 3] = T0
-    P0 = K@RT0 # Projection matrix
+    #T0 = np.array(tvec_1) # Translation vector
+    #R0, _ = cv2.Rodrigues(rvec_1)
+    #RT0 = np.zeros((3,4))  # combined Rotation/Translation matrix
+    #RT0[:3,:3] = R0
+    #RT0[:3, 3] = T0
 
-    T1 = np.array(tvec_2)
-    R1 = eulerAnglesToRotationMatrix(rvec_2) # Rotation matrix:
-    RT1 = np.zeros((3,4))
-    RT1[:3,:3] = R1
-    RT1[:3, 3] = -T1
-    P1 = K@ RT1
+    RT0 = extrinsic_vecs_to_matrix(rvec_1, tvec_1)
+    P0 = K @ RT0[:3]  # Projection matrix
+
+    #T1 = np.array(tvec_2)
+    #R1, _ = cv2.Rodrigues(np.array(rvec_2))
+    #RT1 = np.zeros((3,4))
+    #RT1[:3,:3] = R1
+    #RT1[:3, 3] = -T1
+    RT1 = extrinsic_vecs_to_matrix(rvec_2, tvec_2)
+    P1 = K @ RT1[:3]
     return P0, P1
 
 
@@ -219,26 +203,7 @@ def triangulate_points_opencv_2(kp1_matched, kp2_matched, intrinsics, T_1_to_2):
 '''
 
 
-def eulerAnglesToRotationMatrix( theta) :
-    R_x = np.array([[1,         0,                  0                   ],
-                    [0,         math.cos(theta[0]), -math.sin(theta[0]) ],
-                    [0,         math.sin(theta[0]), math.cos(theta[0])  ]
-                    ])    
-
-    R_y = np.array([[math.cos(theta[1]),    0,      math.sin(theta[1])  ],  
-                    [0,                     1,      0                   ],
-                    [-math.sin(theta[1]),   0,      math.cos(theta[1])  ]
-                    ])
-
-    R_z = np.array([[math.cos(theta[2]),    -math.sin(theta[2]),    0], 
-                    [math.sin(theta[2]),    math.cos(theta[2]),     0], 
-                    [0,                     0,                      1]
-                    ])    
-
-    R = np.dot(R_z, np.dot( R_y, R_x ))
-
-    return R
-
+'''
 def extract_rigid_body_parameters(matrix):
     """
     extract_rigid_body_parameters(matrix)
@@ -256,6 +221,7 @@ def extract_rigid_body_parameters(matrix):
     rot = spr.from_matrix(r)
     euler = rot.as_euler('zyx', degrees=True)
     return [euler[0], euler[1], euler[2],t[0], t[1], t[2]]
+'''
 
 
 def plot_image_pair(imgs, dpi=100, size=6, pad=.5):
@@ -360,7 +326,7 @@ def get_matched_keypoints_sift(img1_original, img2_original):
     
     for m,n in matches:
         
-        if m.distance < 0.5*n.distance:
+        if m.distance < 0.8*n.distance:
             good.append(m)
             # https://stackoverflow.com/questions/30716610/how-to-get-pixel-coordinates-from-feature-matching-in-opencv-python
             # extracting indexes of matched idx from images
