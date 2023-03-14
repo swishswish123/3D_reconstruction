@@ -294,8 +294,6 @@ def test_aroCo_poses(project_path):
 
 if __name__ == '__main__':
     project_path = Path(__file__).parent.resolve()
-    #intrinsics = np.loadtxt(f'{project_path}/../calibration/endoscope_calibration/intrinsics.txt')
-    #distortion = np.loadtxt(f'{project_path}/../calibration/endoscope_calibration/distortion.txt')
 
     test_aroCo_poses(project_path)
     # im1, im2 = test_EM_poses()

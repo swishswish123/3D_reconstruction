@@ -95,14 +95,21 @@ def save_frame(img,frame_num, intrinsics, distortion):
 
 if __name__=='__main__':
     project_path = Path(__file__).parent.resolve()
+    # folder will be structured as follows:
+    # assets/type/folder/images
 
-    save_folder = f'{project_path}/assets/tests/aruCo'
-    MARKER_LENGTH = 30 #mm
+    type='aruco' # random / phantom / EM_tracker_calib / tests
+    folder = 'shelves_2'
+
+    save_folder = f'{project_path}/assets/{type}/{folder}'
+
+    MARKER_LENGTH = 30 # mm
     RECORD_ALL=False
     FRAME_RATE=1
     # CREATING FOLDERS WHERE TO SAVE FRAMES AND TRACKING INFO
     if not os.path.isdir(f'{save_folder}/images'):
         os.makedirs(f'{save_folder}/images')  
+        os.makedirs(f'{save_folder}/undistorted')  
 
     intrinsics = np.loadtxt(f'{project_path}/calibration/mac_calibration/intrinsics.txt')
     distortion = np.loadtxt(f'{project_path}/calibration/mac_calibration/distortion.txt')

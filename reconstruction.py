@@ -19,7 +19,6 @@ from reconstruction_utils.reconstruction_algorithms import *
 from reconstruction_utils.utils import interpolate_between_lines
 
 
-
 if __name__=='__main__':
     project_path = Path(__file__).parent.resolve()
 
@@ -27,7 +26,7 @@ if __name__=='__main__':
     # method of performing 3D reconstruction
     method ='opencv' # opencv/sksurgery/online/prince
     # parent folder of data type
-    type='tests' # random / phantom / EM_tracker_calib
+    type='tests' # random / phantom / EM_tracker_calib /tests
     # folder right on top of images
     folder = 'aruCo'
     # RANDOM, UNDISTORTED: arrow / brain  / checkerboard_test_calibrated / gloves / 
@@ -35,6 +34,8 @@ if __name__=='__main__':
     # RANDOM, Distorted: books / points / spinal_section / spinal_section_pink
     # EM_TRACKING_CALIB testing_points /testing_lines
     # PHANTOM: surface / right_in / phantom_surface_2 / both_mid
+    # tests: half_square_2 / EM_half_square
+    # aruco: puzzle_box /shelves (70 z, 70 x, 20y) /shelves_2 (25x, 0y, 95z)
     
     # determines space between images we pick
     frame_rate = 1
@@ -42,8 +43,8 @@ if __name__=='__main__':
     TRACKING = 'aruCo' # EM / aruCo
     
     # change to the correct folder where intrinsics and distortion located
-    intrinsics = np.loadtxt(f'{project_path}/calibration/endoscope_calibration/intrinsics.txt')
-    distortion = np.loadtxt(f'{project_path}/calibration/endoscope_calibration/distortion.txt')
+    intrinsics = np.loadtxt(f'{project_path}/calibration/mac_calibration/intrinsics.txt')
+    distortion = np.loadtxt(f'{project_path}/calibration/mac_calibration/distortion.txt')
     
     # method of getting keypoints and matching between frames
     matching_method = 'superglue' # sift / superglue
@@ -59,7 +60,7 @@ if __name__=='__main__':
         
         # matches paths once performed
         # path where all match pairs located (SUPERGLUE)
-        output_dir = f'{project_path}/outputs/match_pairs_{type}_{folder}/'
+        output_dir = f'{project_path}/outputs/match_pairs_{type}_{folder}'
         # matches
         match_paths = glob.glob(f'{output_dir}/*.npz')
 
@@ -93,11 +94,13 @@ if __name__=='__main__':
     D3_colors_all = []
 
     for idx in np.arange(0, len(frames_pth)-1, frame_rate):
-    #for idx in range(2,3):
+    #for idx in [0]:
         if idx%10==0:
             print(f'image {idx}')
         # jpg frames path of two matched pairs
-        im1_path = frames_pth[idx]
+        ##################### 1)))))))))))))))))
+        #im1_path = frames_pth[idx]
+        im1_path = frames_pth[0]
         im2_path = frames_pth[idx+frame_rate]
 
         # image number (eg. 00000001)- excluding extension
@@ -139,10 +142,21 @@ if __name__=='__main__':
             kp1_matched, kp2_matched = get_matched_keypoints_superglue(f'{output_dir}/{im1}_{im2}_matches.npz')
         elif matching_method == 'sift':
             kp1_matched, kp2_matched = get_matched_keypoints_sift(img1_original, img2_original)
-        # if no matches found skip to next frame pair
+
+        # if no matches found skip to next frame pair, otherwise undistort kpts
         if np.size(kp1_matched)==0:
             print('no matches')
             continue
+
+        # undistort keypoints
+        kp1_matched = cv2.undistortPoints(kp1_matched.astype('float32'), intrinsics, distortion, None,
+                                                             intrinsics)
+        kp2_matched = cv2.undistortPoints(kp2_matched.astype('float32'), intrinsics, distortion, None,
+                                                             intrinsics)
+
+        kp1_matched = kp1_matched.squeeze(1).T # (2xN)
+        kp2_matched = kp2_matched.squeeze(1).T # (2xN)
+
         ############################ IMAGE POSES ################################
         # rotation and translation vec of first frame will be set to zero, R and t of second 
         # camera position will be set to whatever the transform between the two cameras is
@@ -151,7 +165,9 @@ if __name__=='__main__':
         tvec_1 =  np.zeros(3)
         if TRACKING=='EM':
             # selecting poses information of current img pairs
-            im1_poses =  poses[idx]  
+            ################## 2))))))))))))))
+            #im1_poses =  poses[idx]
+            im1_poses = poses[0]
             im2_poses =  poses[idx+frame_rate] 
             # getting relative transform between two camera poses
             # relative position between the two is going from the first image to the origin,
@@ -160,10 +176,12 @@ if __name__=='__main__':
             
         elif TRACKING == 'aruCo':
             # selecting poses of aruco of current frame pair and converting to 4x4 matrix
-            im1_mat = rigid_body_parameters_to_matrix(np.concatenate([rvecs[idx], tvecs[idx]])) #(4x4)
+            ################## 3)))))))))))))))))))
+            #im1_mat = rigid_body_parameters_to_matrix(np.concatenate([rvecs[idx], tvecs[idx]])) #(4x4)
+            im1_mat = rigid_body_parameters_to_matrix(np.concatenate([rvecs[0], tvecs[0]]))  # (4x4)
             im2_mat = rigid_body_parameters_to_matrix(np.concatenate([rvecs[idx+frame_rate], tvecs[idx+frame_rate]])) #(4x4)
             # relative transform between two camera poses
-            T_1_to_2 = np.linalg.inv(im1_mat) @ im2_mat # (4x4)
+            T_1_to_2 = np.linalg.inv(im2_mat) @ im1_mat # (4x4)
             
             # rotation and translation vectors between two frames in euler angles
             params = extract_rigid_body_parameters(T_1_to_2) # (list of length 6 )
@@ -171,7 +189,7 @@ if __name__=='__main__':
             tvec_2 = params[3:] # list of len 3
         else:
             # estimating camera poses
-            R,t = estimate_camera_poses(kp1_matched.T, kp2_matched.T, intrinsics)
+            R,t = estimate_camera_poses(kp1_matched, kp2_matched, intrinsics)
             im1_poses = rigid_body_parameters_to_matrix([0,0,0,0,0,0])
             im2_poses = np.hstack([R,t])
             im2_poses = np.vstack([im2_poses,np.array([0,0,0,1])])
@@ -180,7 +198,7 @@ if __name__=='__main__':
         
         ####################### GETTING COLOR OF POINTS ###############################################
         # selecting colors of keypoints which will be triangulated
-        input_undistorted_points = np.concatenate([kp1_matched,kp2_matched],axis=1) 
+        input_undistorted_points = np.concatenate([kp1_matched.T,kp2_matched.T],axis=1)
         input_undistorted_points=input_undistorted_points.astype(int) # converting to integer
         D3_colors = img1_original[ input_undistorted_points[:,1],input_undistorted_points[:,0]] # (Nx3)- where N is same as kp_matched N
         
@@ -190,10 +208,10 @@ if __name__=='__main__':
             triangulate with opencv function
             '''
             
-            D3_points  = triangulate_points_opencv(kp1_matched.T, kp2_matched.T, intrinsics, rvec_1, rvec_2, tvec_1, tvec_2) # (3xN)
+            D3_points  = triangulate_points_opencv(kp1_matched, kp2_matched, intrinsics, rvec_1, rvec_2, tvec_1, tvec_2) # (3xN)
             # saving 3D points and colours to array of all pointcloud
-            D3_points_all += np.ndarray.tolist(D3_points.T) # (NX3)
-            D3_colors_all += np.ndarray.tolist(D3_colors)
+            D3_points_all += np.ndarray.tolist(D3_points) # (NX3)
+            D3_colors_all += np.ndarray.tolist(D3_colors) # (NX3)
 
         elif method=='prince':
             '''
