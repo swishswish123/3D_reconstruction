@@ -15,81 +15,6 @@ import match_pairs
 
 from .utils import *
 
-'''
-def reconstruction_gpt(points1, points2, K, R1, t1, R2, t2):
-    # Define world coordinate system
-    world_origin = np.array([0, 0, 0])
-    world_x_axis = np.array([1, 0, 0])
-    world_y_axis = np.array([0, 1, 0])
-    world_z_axis = np.array([0, 0, 1])
-
-    # Define camera 1 pose relative to world coordinate system
-    T1 = np.eye(4)
-    T1[:3, :3] = R1
-    T1[:3, 3] = t1
-    T1_w = np.eye(4)
-    T1_w[:3, :3] = world_x_axis, world_y_axis, world_z_axis
-    T1_w[:3, 3] = world_origin
-    T1_cw = np.linalg.inv(T1_w) @ T1
-
-    # Define camera 2 pose relative to world coordinate system
-    T2 = np.eye(4)
-    T2[:3, :3] = R2
-    T2[:3, 3] = t2
-    T2_w = np.eye(4)
-    T2_w[:3, :3] = world_x_axis, world_y_axis, world_z_axis
-    T2_w[:3, 3] = world_origin
-    T2_cw = np.linalg.inv(T2_w) @ T2
-
-    # Triangulate points
-    points1_norm = cv2.undistortPoints(points1, K, None)
-    points2_norm = cv2.undistortPoints(points2, K, None)
-    points1_norm_hom = np.hstack((points1_norm.reshape(-1, 2), np.ones((points1_norm.shape[0], 1))))
-    points2_norm_hom = np.hstack((points2_norm.reshape(-1, 2), np.ones((points2_norm.shape[0], 1))))
-    
-    points1_norm = points1_norm_hom[:, :2] / points1_norm_hom[:, 2:]
-    points2_norm = points2_norm_hom[:, :2] / points2_norm_hom[:, 2:]
-    points_3d_hom = cv2.triangulatePoints(T1_cw[:3], T2_cw[:3], points1_norm.T, points2_norm.T)
-    points_3d_hom /= points_3d_hom[3, :]
-    points_3d = points_3d_hom[:3, :].T
-
-    return points_3d
-'''
-
-
-'''
-def reconstruction_gpt(kp1_matched, kp2_matched, intrinsics, T_1_to_2):
-    # Convert matched keypoints to homogeneous coordinates
-    kp1_homogeneous = cv2.convertPointsToHomogeneous(kp1_matched).squeeze()
-    kp2_homogeneous = cv2.convertPointsToHomogeneous(kp2_matched).squeeze()
-
-    # Calculate projection matrices for the two views
-    P1 = intrinsics @ np.hstack((np.identity(3), np.zeros((3, 1))))
-    P2 = intrinsics @ T_1_to_2[:3, :]
-
-    # Triangulate 3D points from the corresponding 2D points
-    output_points_homogeneous = cv2.triangulatePoints(P1, P2, kp1_homogeneous, kp2_homogeneous)
-
-    # Convert the points back to Cartesian coordinates
-    output_points_cartesian = output_points_homogeneous[:3, :] / output_points_homogeneous[3, :]
-
-    return output_points_cartesian.T
-'''
-
-
-
-'''
-def triangulate_points_opencv_2(kp1_matched, kp2_matched, intrinsics, T_1_to_2):
-    
-    P1 = intrinsics @ np.array([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0]], dtype=np.double)
-    P2 = intrinsics @ T_1_to_2[:3,:]
-
-    output_points = cv2.triangulatePoints(P1, P2, kp1_matched.T, kp2_matched.T)
-
-    return (output_points[:3] / output_points[3] ).T
-'''
-
-# Initialize consts to be used in linear_LS_triangulation()
 
 
 def linear_LS_triangulation(u1, P1, u2, P2):
@@ -175,40 +100,6 @@ def normalize_keypoints(norm_kpts, camera_matrix, dist_coeffs):
     norm_kpts[:, 1] = (norm_kpts[:, 1] - cy) / fy
 
     return norm_kpts
-
-'''
-def triangulate_points_dlt(kp1_matched, kp2_matched, P1, P2):
-    """
-    Triangulate 3D point from 2D correspondences using Direct Linear Transform (DLT)
-    """
-    
-    # Normalize image coordinates
-    kp1_norm = np.linalg.inv(P1[:3, :3]) @ np.vstack((kp1_matched.T, np.ones((1, kp1_matched.shape[0]))))
-    kp1_norm /= kp1_norm[-1, :]
-    
-    kp2_norm = np.linalg.inv(P2[:3, :3]) @ np.vstack((kp2_matched.T, np.ones((1, kp2_matched.shape[0]))))
-    kp2_norm /= kp2_norm[-1, :]
-    
-    # Setup homogeneous linear equation Ax = 0
-    A = np.zeros((4, 4))
-    for i in range(kp1_matched.shape[0]):
-        A[0, :] = kp1_norm[:, i].T @ P1[2, :] - P1[0, :]
-        A[1, :] = kp1_norm[:, i].T @ P1[2, :] - P1[1, :]
-        A[2, :] = kp2_norm[:, i].T @ P2[2, :] - P2[0, :]
-        A[3, :] = kp2_norm[:, i].T @ P2[2, :] - P2[1, :]
-    
-        # Solve for the 3D point using least-squares
-        _, _, V = np.linalg.svd(A)
-        X_homogeneous = V[-1, :]
-        X_homogeneous /= X_homogeneous[-1]
-        
-    # De-normalize 3D point
-    X = np.linalg.inv(P1[:3, :3]) @ X_homogeneous[:3]
-    X /= X[-1]
-    
-    return X
-'''
-
 
 
 
@@ -389,25 +280,6 @@ def get_xyz_method_prince(intrinsics, kp1_matched, im1_poses, kp2_matched, im2_p
     '''
 
     return D3_points, D3_colors 
-
-def reconstruction_gpt(kp1_matched, kp2_matched, intrinsics):
-    
-    # Estimate essential matrix from the keypoints
-    E, mask = cv2.findEssentialMat(kp1_matched, kp2_matched, intrinsics)
-    
-    # Decompose the essential matrix into rotation and translation
-    R1, R2, t = cv2.decomposeEssentialMat(E)
-    
-    # Reconstruct the 3D points
-    points_3d_homogeneous = cv2.triangulatePoints(intrinsics @ np.hstack((np.identity(3), np.zeros((3, 1)))), 
-                                                  intrinsics @ np.hstack((R2, t)),
-                                                  kp1_matched.T.reshape(1, -1, 2), 
-                                                  kp2_matched.T.reshape(1, -1, 2))
-    
-    # Convert the homogeneous 3D points to 3D coordinates
-    points_3d = points_3d_homogeneous[:3] / points_3d_homogeneous[3]
-    
-    return points_3d.T
 
 
 def stereo_rectify_method(image_1, image_2, im1_poses, im2_poses,intrinsics, distortion, imageSize):

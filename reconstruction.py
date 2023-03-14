@@ -219,14 +219,6 @@ if __name__=='__main__':
         elif matching_method == 'sift':
             kp1_matched, kp2_matched = get_matched_keypoints_sift(img1_original, img2_original)
         elif matching_method =='ground_truth':
-            # kp1_matched =np.array([
-            #         [],
-            #         [],
-            #     ])
-            # kp2_matched = np.array([
-            #     [],
-            #     [],
-            # ])
             kp1_matched, kp2_matched = select_matches(img1_original, img2_original)
             print(kp1_matched, kp2_matched)
         # if no matches found skip to next frame pair, otherwise undistort kpts
@@ -258,7 +250,7 @@ if __name__=='__main__':
         if TRACKING=='EM':
             # selecting poses information of current img pairs
             ################## 2))))))))))))))
-            im1_poses =  poses[idx]
+            im1_poses = poses[idx]
             #im1_poses = poses[0]
             im2_poses =  poses[idx+frame_rate] 
             # getting relative transform between two camera poses
@@ -270,17 +262,12 @@ if __name__=='__main__':
             # selecting poses of aruco of current frame pair and converting to 4x4 matrix
             ################## 3)))))))))))))))))))
             im1_mat = extrinsic_vecs_to_matrix(rvecs[idx], tvecs[idx]) #(4x4)
-            #im1_mat = rigid_body_parameters_to_matrix(np.concatenate([rvecs[0], tvecs[0]]))  # (4x4)
             im2_mat = extrinsic_vecs_to_matrix(rvecs[idx+frame_rate], tvecs[idx+frame_rate]) #(4x4)
             # relative transform between two camera poses
-            # T_1_to_2 = np.linalg.inv(im2_mat) @ im1_mat # (4x4)
-            T_1_to_2 =   np.linalg.inv(im2_mat) @ im1_mat
+            T_1_to_2 =   np.linalg.inv(im2_mat) @ im1_mat # (4x4)
 
             # rotation and translation vectors between two frames in euler angles
-            #params = extract_rigid_body_parameters(T_1_to_2) # (list of length 6 )
             rvec_2, tvec_2 = extrinsic_matrix_to_vecs(T_1_to_2)
-            #rvec_2 = params[:3] # list of len 3
-            #tvec_2 = params[3:] # list of len 3
         else:
             # estimating camera poses
             R,t = estimate_camera_poses(kp1_matched, kp2_matched, intrinsics)
