@@ -23,6 +23,7 @@ import numpy as np
 from matplotlib import pyplot as plt
 import matplotlib as mpl
 
+
 def match_features(img1, img2):
     # Plot images side by side
     fig, ax = plt.subplots(1, 2)
@@ -101,6 +102,7 @@ def select_matches(img1, img2):
     #
     return matches[:, :2], matches[:, 2:]
 
+
 if __name__=='__main__':
     '''
     method leave as 'opencv'
@@ -149,10 +151,7 @@ if __name__=='__main__':
     # superglue- uses superglue for feature matching
     # ground_truth- you will manually label corresponding points between frames
     matching_method = 'superglue' # sift / superglue /ground_truth
-    
-    # perform distortion correction on image or not
-    dist_correction = False
-    
+
     ######################## PERFORMING SUPERGLUE MATCHING ########################################
     # if superglue is selected, superglue matching is performed before running and output is saved under outputs
     if matching_method == 'superglue':
