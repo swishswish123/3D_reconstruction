@@ -183,47 +183,6 @@ def l2r_to_p2d(p2d, l2r):
     return p2d
 
 
-'''
-def triangulate_points_opencv_2(kp1_matched, kp2_matched, intrinsics, T_1_to_2):
-    
-    P1 = intrinsics @ np.hstack((np.identity(3), np.zeros((3, 1))))
-    P2 = intrinsics @ T_1_to_2[:3,:]
-
-    kp1_matched = kp1_matched.reshape(-1, 2).T
-    kp2_matched = kp2_matched.reshape(-1, 2).T
-
-    # triangulate points
-    output_points = cv2.triangulatePoints(P1, P2, kp1_matched, kp2_matched*0.001)
-
-    # convert output points to 3D coordinates
-    output_points = (output_points / output_points[3])
-
-    return output_points[:3]
-
-'''
-
-
-'''
-def extract_rigid_body_parameters(matrix):
-    """
-    extract_rigid_body_parameters(matrix)
-    extracts parameters from transformation matrix
-
-    Args:
-        matrix: 4x4 transformation matrix
-
-    Returns:
-        list of all extracted parameters from matrix
-
-    """
-    t = matrix[0:3, 3]
-    r = matrix[0:3, 0:3]
-    rot = spr.from_matrix(r)
-    euler = rot.as_euler('zyx', degrees=True)
-    return [euler[0], euler[1], euler[2],t[0], t[1], t[2]]
-'''
-
-
 def plot_image_pair(imgs, dpi=100, size=6, pad=.5):
 
     figsize = (size*2, size*3/4) 

@@ -52,6 +52,9 @@ def match_features(img1, img2):
 
 
 def select_matches(img1, img2):
+    '''
+    selecting matches
+    '''
 
 
 
@@ -128,7 +131,7 @@ if __name__=='__main__':
     # parent folder of data type
     type='aruco' # random / phantom / EM_tracker_calib /tests
     # folder right on top of images
-    folder = 'shelves_2'
+    folder = 'shelves_video'
     # RANDOM, UNDISTORTED: arrow / brain  / checkerboard_test_calibrated / gloves / 
     # RANDOM UNDISTORTED MAC CAM: mac_camera /
     # RANDOM, Distorted: books / points / spinal_section / spinal_section_pink
@@ -150,7 +153,7 @@ if __name__=='__main__':
     # sift- sift for feature matching
     # superglue- uses superglue for feature matching
     # ground_truth- you will manually label corresponding points between frames
-    matching_method = 'superglue' # sift / superglue /ground_truth
+    matching_method = 'sift' # sift / superglue /ground_truth
 
     ######################## PERFORMING SUPERGLUE MATCHING ########################################
     # if superglue is selected, superglue matching is performed before running and output is saved under outputs
@@ -199,8 +202,8 @@ if __name__=='__main__':
             print(f'image {idx}')
         # jpg frames path of two matched pairs
         ##################### 1)))))))))))))))))
-        im1_path = frames_pth[idx]
-        #im1_path = frames_pth[0]
+        #im1_path = frames_pth[idx]
+        im1_path = frames_pth[0]
         im2_path = frames_pth[idx+frame_rate]
 
         # image number (eg. 00000001)- excluding extension
@@ -208,7 +211,10 @@ if __name__=='__main__':
         im2 = im2_path.split('/')[-1][:-4]
         # loading images    ############################################
         img1_original = cv2.imread(im1_path)  
-        img2_original = cv2.imread(im2_path) 
+        img2_original = cv2.imread(im2_path)
+
+        img1_original = cv2.cvtColor(img1_original, cv2.COLOR_BGR2RGB)
+        img2_original = cv2.cvtColor(img2_original, cv2.COLOR_BGR2RGB)
 
         ############################### MATCHING ##########################
         # obtaining or loading keypoints between images 
@@ -249,8 +255,8 @@ if __name__=='__main__':
         if TRACKING=='EM':
             # selecting poses information of current img pairs
             ################## 2))))))))))))))
-            im1_poses = poses[idx]
-            #im1_poses = poses[0]
+            #im1_poses = poses[idx]
+            im1_poses = poses[0]
             im2_poses =  poses[idx+frame_rate] 
             # getting relative transform between two camera poses
             # relative position between the two is going from the first image to the origin,
@@ -260,10 +266,11 @@ if __name__=='__main__':
         elif TRACKING == 'aruCo':
             # selecting poses of aruco of current frame pair and converting to 4x4 matrix
             ################## 3)))))))))))))))))))
-            im1_mat = extrinsic_vecs_to_matrix(rvecs[idx], tvecs[idx]) #(4x4)
+            #im1_mat = extrinsic_vecs_to_matrix(rvecs[idx], tvecs[idx]) #(4x4)
+            im1_mat = extrinsic_vecs_to_matrix(rvecs[0], tvecs[0]) #(4x4)
             im2_mat = extrinsic_vecs_to_matrix(rvecs[idx+frame_rate], tvecs[idx+frame_rate]) #(4x4)
             # relative transform between two camera poses
-            T_1_to_2 =   np.linalg.inv(im2_mat) @ im1_mat # (4x4)
+            T_1_to_2 =   im2_mat @ np.linalg.inv(im1_mat)  # (4x4)
 
             # rotation and translation vectors between two frames in euler angles
             rvec_2, tvec_2 = extrinsic_matrix_to_vecs(T_1_to_2)

@@ -99,7 +99,7 @@ if __name__=='__main__':
     # assets/type/folder/images
 
     type='aruco' # random / phantom / EM_tracker_calib / tests
-    folder = 'shelves_2'
+    folder = 'shelves_video_2'
 
     save_folder = f'{project_path}/assets/{type}/{folder}'
 

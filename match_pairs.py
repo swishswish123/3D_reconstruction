@@ -83,14 +83,14 @@ def load_data(type, folder, frame_rate=1):
     ########################## LOADING ALL ###################################
     project_path = Path(__file__).parent.resolve()
     # where image frames are
-    input_dir = f'assets/{type}/{folder}/images'
+    input_dir = f'{project_path}/assets/{type}/{folder}/images'
     # file specifying which image pairs to find matches for
-    pairs_info = f'assets/pairs_info/{type}_{folder}_fr_{frame_rate}_pairs.txt'
+    pairs_info = f'{project_path}/assets/pairs_info/{type}_{folder}_fr_{frame_rate}_pairs.txt'
     # where matched pairs output are put into
-    output_dir = f'outputs/match_pairs_{type}_{folder}/'
+    output_dir = f'{project_path}/outputs/match_pairs_{type}_{folder}/'
     
     # path of image sequence
-    frames_paths = sorted(glob.glob(f'{project_path}/{input_dir}/*.*'))
+    frames_paths = sorted(glob.glob(f'{input_dir}/*.*'))
 
     ########################### RENAMING IMAGES TO 8 NUMBER FORMAT IF NEEDED  ##########################
     if len(frames_paths[0].split('/')[-1])<11:
@@ -104,8 +104,8 @@ def load_data(type, folder, frame_rate=1):
     
     ########################### create pairs info file if it doesn't already exist
     if not os.path.isfile(pairs_info):
-        # Reloadimg frames_path in case names have been changed
-        frames_paths = sorted(glob.glob(f'{project_path}/{input_dir}/*.*'))
+        # Reloading frames_path in case names have been changed
+        frames_paths = sorted(glob.glob(f'{input_dir}/*.*'))
         f = open(pairs_info,"w+")
         for idx in np.arange(0,len(frames_paths)-1, frame_rate):
             # path of img 1
@@ -172,7 +172,7 @@ def load_data(type, folder, frame_rate=1):
         'keypoint_threshold':0.005, #SuperPoint keypoint detector confidence threshold
         'nms_radius':4,# SuperPoint Non Maximum Suppression (NMS) radius (Must be positive)
         'sinkhorn_iterations':20,# Number of Sinkhorn iterations performed by SuperGlue
-        'match_threshold':0.9,# SuperGlue match threshold'
+        'match_threshold':0.8,# SuperGlue match threshold'
 
         'viz':True,# Visualize the matches and dump the plots
         'eval':False ,#Perform the evaluation' (requires ground truth pose and intrinsics)

@@ -20,7 +20,7 @@ if __name__=='__main__':
     # EM_TRACKING_CALIB testing_points /testing_lines
     # RANDOM, UNDISTORTED WITH MAC: mac_camera
     # PHANTOM: surface / right_in / phantom_surface_2 / both_mid / surface_undistorted
-    folder = 'shelves_2'
+    folder = 'shelves_video'
 
     ########################## LOADING ALL ###################################
 
@@ -37,8 +37,8 @@ if __name__=='__main__':
     ########################## REMOVE OUTLIERS ###################################
     
     # find all rows with any col values larger than max_num
-    max_num = 1000
-    min_num = -1000
+    max_num = 2000
+    min_num = 0
     df = df.drop(df[ (df['X'] > max_num) | (df['Y'] > max_num) | (df['Z'] > max_num) ].index, inplace=False)
     df = df.drop(df[ (df['X'] < min_num) | (df['Y'] < min_num) | (df['Z'] < min_num) ].index, inplace=False)
 
