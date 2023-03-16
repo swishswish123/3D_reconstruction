@@ -4,8 +4,9 @@ from pathlib import Path
 import os 
 
 def aruco_display(corners, ids, rejected, image, rvecs, tvecs):
+
     if len(corners) > 0:
-		
+		# ids of aruco markers detected
         ids = ids.flatten()
 
         for (markerCorner, markerID) in zip(corners, ids):
@@ -40,7 +41,7 @@ def aruco_display(corners, ids, rejected, image, rvecs, tvecs):
     return image
 
 
-def pose_estimation(frame, aruco_dict_type, matrix_coefficients, distortion_coefficients):
+def single_marker_pose_estimation(frame, aruco_dict_type, matrix_coefficients, distortion_coefficients):
 
     #gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
     cv2.aruco_dict = aruco_dict_type
@@ -74,26 +75,65 @@ def pose_estimation(frame, aruco_dict_type, matrix_coefficients, distortion_coef
     return frame, rvecs, tvecs
 
 
+def aruco_board_pose_estimation(frame, aruco_dict_type, matrix_coefficients, distortion_coefficients):
+    # gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    markers_w = 5 # Number of markers in the X direction.
+    markers_h = 7 # Number of markers in the y direction.
+    marker_length = 0.04 # length of aruco marker (m)
+    marker_separation = 0.01 # separation between markers (m)
+    ar = cv2.aruco.DICT_4X4_50 # aruco dictionary we will use
+    aruco_dict = cv2.aruco.Dictionary_get(ar) # dictionary of markers provided
+
+    # creat an aruco Board (The ids in ascending order starting on 0)
+    grid_board = cv2.aruco.GridBoard_create(markers_w,
+                                            markers_h,
+                                            marker_length,
+                                            marker_separation,
+                                            aruco_dict)
+
+
+    cv2.aruco_dict = aruco_dict_type
+    parameters = cv2.aruco.DetectorParameters_create()
+
+    corners, ids, rejected_img_points = cv2.aruco.detectMarkers(frame, cv2.aruco_dict, parameters=parameters,
+                                                                cameraMatrix=matrix_coefficients,
+                                                                distCoeff=distortion_coefficients)
+    rvec = None
+    tvec = None
+
+    # if at least one marker is detected
+    if len(corners) > 0:
+
+        # estimate pose of board
+        success, rvec, tvec = cv2.aruco.estimatePoseBoard(corners, ids, grid_board, intrinsics, distortion, rvec, tvec)
+
+        if success:
+            # draw detected markers corners
+            cv2.aruco.drawDetectedMarkers(frame, corners)
+            # drawing axis of aruco marker board
+            cv2.aruco.drawAxis(frame, intrinsics, distortion, rvec, tvec, 0.05)
+
+            # adding as text the distance from camera to aruco marker (z coord of tvec)
+            cv2.putText(frame, str(int(tvec[2])), (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 3)
+    else:
+        # if no markers detected, placing text that board wasn't found
+        cv2.putText(frame, 'no board detected', (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 3)
+
+    return frame, rvec, tvec
+
+
 def save_frame(img,frame_num, intrinsics, distortion):
-    print('saving frame')
-    # UNDISTORT FRAME
-    h,  w = img.shape[:2]
-    #newcameramtx, roi = cv2.getOptimalNewCameraMatrix(intrinsics, distortion, (w,h), 1, (w,h))
     # undistort
     dst = cv2.undistort(img, intrinsics, distortion, None, intrinsics)
-    #mapx, mapy = cv2.initUndistortRectifyMap(INTRINSICS, DISTORTION, None, newcameramtx, (w,h), 5)
-    #dst = cv2.remap(img, mapx, mapy, cv2.INTER_LINEAR)
-    # crop the image
-    #x, y, w, h = roi
-    #dst = dst[y:y+h, x:x+w]
 
     # undistorted
-    cv2.imwrite('{}/images/{:08d}.png'.format(save_folder,frame_num), img)#save_folder, i
+    cv2.imwrite('{}/images/{:08d}.png'.format(save_folder,frame_num), img) #save_folder, i
     # distorted
-    cv2.imwrite('{}/undistorted/{:08d}.png'.format(save_folder,frame_num), dst)#save_folder, i
+    cv2.imwrite('{}/undistorted/{:08d}.png'.format(save_folder,frame_num), dst) #save_folder, i
 
 
 if __name__=='__main__':
+    BOARD = True
     project_path = Path(__file__).parent.resolve()
     # folder will be structured as follows:
     # assets/type/folder/images
@@ -130,8 +170,10 @@ if __name__=='__main__':
 
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
-        output, rvecs, tvecs  = pose_estimation(gray, arucoDict, intrinsics, distortion)
-        
+        if BOARD:
+            output, rvecs, tvecs  = aruco_board_pose_estimation(frame, arucoDict, intrinsics, distortion)
+        else:
+            continue
         cv2.imshow('Estimated Pose', output)
 
         key = cv2.waitKey(1) & 0xFF
