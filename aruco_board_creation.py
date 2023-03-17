@@ -16,7 +16,7 @@ if __name__=='__main__':
     # Settings for the marker
     markers_w = 5 # Number of markers in the X direction.
     markers_h = 7 # Number of markers in the y direction.
-    marker_length = 0.04 # length of aruco marker (m)
+    marker_length = 0.01 # length of aruco marker (m)
     marker_separation = 0.01 # separation between markers (m)
     ar = cv2.aruco.DICT_4X4_50 # aruco dictionary we will use
     aruco_dict = cv2.aruco.Dictionary_get(ar) # dictionary of markers provided
@@ -32,7 +32,8 @@ if __name__=='__main__':
     # convert to image
     img_size = (2400 , 3450)
     img_margin = 100 # margin in pixels, so none of the markers are touching the image border. In this case the margin is 10.
-    img = grid_board.draw(img_size, img_margin, 10)
+    # img = grid_board.draw(img_size, img_margin, 10)
+    img = cv2.aruco.Board.generateImage(img_size)
 
     cv2.imwrite("aruco_board.png", img)
 

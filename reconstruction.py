@@ -127,7 +127,7 @@ if __name__=='__main__':
 
     ########################## PARAMS ###################################
     # method of performing 3D reconstruction
-    method ='opencv' # opencv/sksurgery/online/prince
+    method ='prince' # opencv/sksurgery/online/prince
     # parent folder of data type
     type='aruco' # random / phantom / EM_tracker_calib /tests
     # folder right on top of images
@@ -299,7 +299,8 @@ if __name__=='__main__':
             '''
             triangulating with prince method 
             '''
-            D3_points, D3_colors = get_xyz_method_prince(intrinsics, kp1_matched, im1_poses, kp2_matched, im2_poses, image_1=np.array(img1_original))
+            D3_points, D3_colors = get_xyz_method_prince(intrinsics, kp1_matched, im1_mat, kp2_matched,
+                                                         im2_mat, image_1=np.array(img1_original))
 
             D3_points_all += D3_points
             D3_colors_all += D3_colors
