@@ -34,13 +34,18 @@ if __name__=='__main__':
     marker_separation = (int)(marker_length * gap_ratio)
 
     # Create an aruco Board (The ids in ascending order starting on 0)
-    aruco_dict = cv2.aruco.Dictionary_get(ar)
-    grid_board = cv2.aruco.GridBoard_create(markers_w,
-                                            markers_h,
-                                            marker_length,
-                                            marker_separation,
-                                            aruco_dict)
-
+    #aruco_dict = cv2.aruco.Dictionary_get(ar)
+    aruco_dict = cv2.aruco.getPredefinedDictionary(ar)  # dictionary of markers provided
+    #grid_board = cv2.aruco.GridBoard_create(markers_w,
+    #                                        markers_h,
+    #                                        marker_length,
+    #                                        marker_separation,
+    #                                        aruco_dict)
+    # creat an aruco Board (The ids in ascending order starting on 0)
+    grid_board = cv2.aruco.GridBoard((markers_w, markers_h),
+                                     marker_length,
+                                     marker_separation,
+                                     aruco_dict)
     pixels_per_bit = 10
     width_millimetres = (markers_w * marker_length) + ((markers_w - 1) * marker_separation)
     height_millimetres = (markers_h * marker_length) + ((markers_h - 1) * marker_separation)
