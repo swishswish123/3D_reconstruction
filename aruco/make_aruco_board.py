@@ -1,19 +1,12 @@
-'''
-this file will create an aruco board of specified dimensions and aruco dict type.
-bug: can't figure out how to make image same dimension for printing
-'''
+# -*- coding: utf-8 -*-
+
 import cv2
-from pathlib import Path
 
 
-if __name__=='__main__':
-    # https://stackoverflow.com/questions/59789491/using-board-create-for-aruco-markers-leads-to-error-due-to-objpoints-not-in-the
-
-    project_path = Path(__file__).parent.resolve()
-    # folder will be structured as follows:
-    # assets/type/folder/images
-
-    # Settings for the marker
+def make_aruco_board_image(width,
+                           height,
+                           size,
+                           pixels):
 
     # These two define the size of the marker. So, its a 4x4 marker, with 1 pixel border = 6x6.
     ar = cv2.aruco.DICT_4X4_50  # Aruco dictionary we will use.
@@ -25,15 +18,15 @@ if __name__=='__main__':
     gap_ratio = float(gap_between_markers_in_bits) / float(size_of_marker_in_bits)
 
     # This is the number of markers on the board.
-    markers_w = 5  # Number of markers in the X direction.
-    markers_h = 7  # Number of markers in the y direction.
+    markers_w = width   # Number of markers in the X direction.
+    markers_h = height  # Number of markers in the y direction.
 
     # This gives the physical units.
     # So when you calibrate, you have the same units.
-    marker_length = 30  # length of aruco marker (millimetres).
+    marker_length = size  # length of apps marker (millimetres).
     marker_separation = (int)(marker_length * gap_ratio)
 
-    # Create an aruco Board (The ids in ascending order starting on 0)
+    # Create an apps Board (The ids in ascending order starting on 0)
     aruco_dict = cv2.aruco.Dictionary_get(ar)
     grid_board = cv2.aruco.GridBoard_create(markers_w,
                                             markers_h,
@@ -41,7 +34,7 @@ if __name__=='__main__':
                                             marker_separation,
                                             aruco_dict)
 
-    pixels_per_bit = 10
+    pixels_per_bit = pixels
     width_millimetres = (markers_w * marker_length) + ((markers_w - 1) * marker_separation)
     height_millimetres = (markers_h * marker_length) + ((markers_h - 1) * marker_separation)
     width_pixels = pixels_per_bit * ((markers_w * size_of_marker_in_bits) + ((markers_w - 1) * gap_between_markers_in_bits))
@@ -54,7 +47,7 @@ if __name__=='__main__':
                                     borderBits=border_bits
                                     )
 
-    print(f"Load image into GIMP. Image size={width_pixels} x {height_pixels} pixels.")
-    print(f"Set image size to: {width_millimetres} x {height_millimetres} millimetres")
-    cv2.imwrite("aruco_board.png", img)
+    print(f"Generated image, size={width_pixels} x {height_pixels} pixels.")
+    print(f"Load into GIMP and set image size to: {width_millimetres} x {height_millimetres} millimetres when printing.")
 
+    return img
