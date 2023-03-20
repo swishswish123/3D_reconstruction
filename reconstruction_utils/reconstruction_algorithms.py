@@ -1,106 +1,9 @@
 
 
+from .utils import get_projection_matrices, img_poses_reformat, extrinsic_matrix_to_vecs, estimate_camera_poses
+
 import numpy as np
-from pathlib import Path
-import os
-import glob
-import matplotlib.pyplot as plt
 import cv2
-from matplotlib import lines
-import matplotlib.cm as cm
-from models.utils import plot_keypoints, plot_matches,process_resize
-from scipy.spatial.transform import Rotation as spr
-import sksurgerycore.transforms.matrix as stm
-import match_pairs
-
-from .utils import *
-
-
-
-def linear_LS_triangulation(u1, P1, u2, P2):
-    """
-    https://github.com/Eliasvan/Multiple-Quadrotor-SLAM/blob/master/Work/python_libs/triangulation.py
-    Linear Least Squares based triangulation.
-    Relative speed: 0.1
-    
-    (u1, P1) is the reference pair containing normalized image coordinates (x, y) and the corresponding camera matrix.
-    (u2, P2) is the second pair.
-    
-    u1 and u2 are matrices: amount of points equals #rows and should be equal for u1 and u2.
-    
-    The status-vector will be True for all points.
-    """
-    A = np.zeros((4, 3))
-    b = np.zeros((4, 1))
-    
-    # Create array of triangulated points
-    x = np.zeros((3, len(u1)))
-    
-    # Initialize C matrices
-    linear_LS_triangulation_C = -np.eye(2, 3)
-    C1 = np.array(linear_LS_triangulation_C)
-    C2 = np.array(linear_LS_triangulation_C)
-    
-    for i in range(len(u1)):
-        # Derivation of matrices A and b:
-        # for each camera following equations hold in case of perfect point matches:
-        #     u.x * (P[2,:] * x)     =     P[0,:] * x
-        #     u.y * (P[2,:] * x)     =     P[1,:] * x
-        # and imposing the constraint:
-        #     x = [x.x, x.y, x.z, 1]^T
-        # yields:
-        #     (u.x * P[2, 0:3] - P[0, 0:3]) * [x.x, x.y, x.z]^T     +     (u.x * P[2, 3] - P[0, 3]) * 1     =     0
-        #     (u.y * P[2, 0:3] - P[1, 0:3]) * [x.x, x.y, x.z]^T     +     (u.y * P[2, 3] - P[1, 3]) * 1     =     0
-        # and since we have to do this for 2 cameras, and since we imposed the constraint,
-        # we have to solve 4 equations in 3 unknowns (in LS sense).
-
-        # Build C matrices, to construct A and b in a concise way
-        C1[:, 2] = u1[i, :]
-        C2[:, 2] = u2[i, :]
-        
-        # Build A matrix:
-        # [
-        #     [ u1.x * P1[2,0] - P1[0,0],    u1.x * P1[2,1] - P1[0,1],    u1.x * P1[2,2] - P1[0,2] ],
-        #     [ u1.y * P1[2,0] - P1[1,0],    u1.y * P1[2,1] - P1[1,1],    u1.y * P1[2,2] - P1[1,2] ],
-        #     [ u2.x * P2[2,0] - P2[0,0],    u2.x * P2[2,1] - P2[0,1],    u2.x * P2[2,2] - P2[0,2] ],
-        #     [ u2.y * P2[2,0] - P2[1,0],    u2.y * P2[2,1] - P2[1,1],    u2.y * P2[2,2] - P2[1,2] ]
-        # ]
-        A[0:2, :] = C1.dot(P1[0:3, 0:3])    # C1 * R1
-        A[2:4, :] = C2.dot(P2[0:3, 0:3])    # C2 * R2
-        
-        # Build b vector:
-        # [
-        #     [ -(u1.x * P1[2,3] - P1[0,3]) ],
-        #     [ -(u1.y * P1[2,3] - P1[1,3]) ],
-        #     [ -(u2.x * P2[2,3] - P2[0,3]) ],
-        #     [ -(u2.y * P2[2,3] - P2[1,3]) ]
-        # ]
-        b[0:2, :] = C1.dot(P1[0:3, 3:4])    # C1 * t1
-        b[2:4, :] = C2.dot(P2[0:3, 3:4])    # C2 * t2
-        b *= -1
-        
-        # Solve for x vector
-        cv2.solve(A, b, x[:, i:i+1], cv2.DECOMP_SVD)
-    
-    return x.T.astype(dtype='float'), np.ones(len(u1), dtype=bool)
-
-
-def normalize_keypoints(norm_kpts, camera_matrix, dist_coeffs):
-    # Get camera parameters
-    cx = camera_matrix[0, 2]
-    cy = camera_matrix[1, 2]
-    fx = camera_matrix[0, 0]
-    fy = camera_matrix[1, 1]
-    #dist_coeffs = camera_matrix[:, 4:]
-
-    # Normalize keypoints
-    #norm_kpts = cv2.undistortPoints(norm_kpts.reshape(-1, 1, 2), camera_matrix, dist_coeffs, None, None)
-    norm_kpts = norm_kpts.reshape(-1, 2)
-    norm_kpts[:, 0] = (norm_kpts[:, 0] - cx) / fx
-    norm_kpts[:, 1] = (norm_kpts[:, 1] - cy) / fy
-
-    return norm_kpts
-
 
 
 def triangulate_points_opencv(kp1_matched, kp2_matched, intrinsics,rvec_1,rvec_2, tvec_1, tvec_2):
@@ -123,79 +26,6 @@ def triangulate_points_opencv(kp1_matched, kp2_matched, intrinsics,rvec_1,rvec_2
 
     return res_1.T
 
-def triangulate_points_sksurgery(input_undistorted_points,
-                              left_camera_intrinsic_params,
-                              right_camera_intrinsic_params,
-                              left_to_right_rotation_matrix,
-                              left_to_right_trans_vector):
-    """
-    Function to compute triangulation of points using Harley with cv2.triangulatePoints
-    :param input_undistorted_points: [nx4] narray  each input row is [l_x, l_y, r_x, r_y]
-    :param left_camera_intrinsic_params: [3x3] narray
-    :param right_camera_intrinsic_params: [3x3] narray
-    :param left_to_right_rotation_matrix: [3x3] narray
-    :param left_to_right_trans_vector: [3x1] narray
-    :return output_points: [nx3] narray
-    Other related variables:
-        left_undistorted, right_undistorted: point image positions in 2 cameras
-        left_undistorted[4x2], right_undistorted[4x2] from input_undistorted_points [4x4]
-    References
-    ----------
-    Hartley, Richard I., and Peter Sturm. "Triangulation." Computer vision and image understanding 68, no. 2 (1997): 146-157.
-    """
-
-    l2r_mat = stm.construct_rigid_transformation(left_to_right_rotation_matrix, left_to_right_trans_vector)
-
-    # The projection matrix, is just the extrinsic parameters, as our coordinates will be in a normalised camera space.
-    # P1 should be identity, so that reconstructed coordinates are in Left Camera Space, to P2 should reflect
-    # a right to left transform.
-    # Prince, Simon JD. Computer vision: models, learning, and inference. Cambridge University Press, 2012.
-    p1mat = np.array([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0]], dtype=np.double)
-
-    p2mat = np.zeros((3, 4), dtype=np.double)
-    p2mat = l2r_to_p2d(p2mat, l2r_mat)
-
-    number_of_points = input_undistorted_points.shape[0]
-    output_points = np.zeros((number_of_points, 3), dtype=np.double)
-    # COLORS (RGB)
-    output_colors = np.zeros((number_of_points, 3), dtype=np.double)
-
-    # Inverting intrinsic params to convert from pixels to normalised image coordinates.
-    k1inv = np.linalg.inv(left_camera_intrinsic_params)
-    k2inv = np.linalg.inv(right_camera_intrinsic_params)
-
-    u1_array = np.zeros((3, 1), dtype=np.double)
-    u2_array = np.zeros((3, 1), dtype=np.double)
-
-    for dummy_index in range(0, number_of_points):
-        u1_array[0, 0] = input_undistorted_points[dummy_index, 0]
-        u1_array[1, 0] = input_undistorted_points[dummy_index, 1]
-        u1_array[2, 0] = 1
-
-        u2_array[0, 0] = input_undistorted_points[dummy_index, 2]
-        u2_array[1, 0] = input_undistorted_points[dummy_index, 3]
-        u2_array[2, 0] = 1
-
-        # Converting to normalised image points
-        u1t = np.matmul(k1inv, u1_array)
-        u2t = np.matmul(k2inv, u2_array)
-
-        # array shapes for input args cv2.triangulatePoints( [3, 4]; [3, 4]; [2, 1]; [2, 1] )
-        reconstructed_point = cv2.triangulatePoints(p1mat, p2mat, u1t[:2], u2t[:2])
-        reconstructed_point /= reconstructed_point[3]  # Homogenize
-
-        output_points[dummy_index, 0] = reconstructed_point[0]
-        output_points[dummy_index, 1] = reconstructed_point[1]
-        output_points[dummy_index, 2] = reconstructed_point[2]
-
-        #color = list(image_1[int(x1[1]),int(x1[0]),:]) # always selecting color of first image
-
-        #image[u1_array[0, 0]]
-        #output_colors[dummy_index, 0] = reconstructed_point[0] # r
-        #output_colors[dummy_index, 1] = reconstructed_point[1] # g
-        #output_colors[dummy_index, 2] = reconstructed_point[2] # b
-
-    return output_points
 
 
 def get_xyz_method_prince(intrinsics, kp1_matched, im1_poses, kp2_matched, im2_poses, image_1=None):
@@ -288,7 +118,7 @@ def stereo_rectify_method(image_1, image_2, im1_poses, im2_poses,intrinsics, dis
     # relative position between the two is going from the first image to the origin, then from origin to the second image
     T_1_to_2 = np.linalg.inv(im1_poses) @ im2_poses
     # extracting R and T vectors 
-    params = extract_rigid_body_parameters(T_1_to_2)
+    params = extrinsic_matrix_to_vecs(T_1_to_2)
 
     R = np.array([params[:3]]).T
     T = np.array([params[3:]]).T
@@ -348,50 +178,6 @@ def get_xyz(cam1_coords, camera1_M, camera1_R, camera1_T, cam2_coords, camera2_M
     
     return D3_points
 
-
-def recover_pose(kp1, kp2, K):
-    
-    E, mask = cv2.findEssentialMat(kp1.T, kp2.T, focal=1.0, pp=(0., 0.), method=cv2.FM_LMEDS, prob=0.999, threshold=3.0)
-    
-    points, R, t, mask = cv2.recoverPose(E, kp1.T, kp2.T)
-    #R1, R2, t = cv2.decomposeEssentialMat(E)
-    
-    return R,t
-
-def estimate_camera_poses(kp1_matched, kp2_matched, K):
-    #F, _ = cv2.findFundamentalMat(kp1_matched, kp2_matched, cv2.FM_RANSAC)
-    '''
-    F, _ = cv2.findFundamentalMat(kp1_matched.T, kp2_matched.T, cv2.FM_RANSAC)
-    if isinstance(F, np.ndarray):
-        pass
-    else:
-        return None
-    '''
-    kp1_norm = cv2.undistortPoints(np.expand_dims(kp1_matched, axis=2), K, None)
-    kp2_norm = cv2.undistortPoints(np.expand_dims(kp2_matched, axis=2), K, None)
-
-    # Estimate the essential matrix using the normalized points
-    E, _ = cv2.findEssentialMat(kp1_norm, kp2_norm, K)
-
-    #E = np.transpose(K) @ F[:3] @ K
-    #E = np.matmul(np.matmul(K.T, F), K)
-
-    #E = K.T @ F @ K
-    #E = np.matmul(np.matmul(np.transpose(K), F), K)
-
-    _, R, t, _ = cv2.recoverPose(E, kp1_matched.T, kp2_matched.T, K)
-
-    U, _, Vt = np.linalg.svd(E)
-    W = np.array([[0, -1, 0], [1, 0, 0], [0, 0, 1]])
-    R = np.matmul(np.matmul(U, W), Vt)
-    t = U[:, 2]
-
-    # Check for the correct rotation matrix
-    if np.linalg.det(R) < 0:
-        R = -R
-        t = -t
-    
-    return R,t
 
 
 def method_3( kp1_matched, kp2_matched, K):

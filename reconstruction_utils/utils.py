@@ -1,19 +1,157 @@
 
 import numpy as np
-from pathlib import Path
-import os
-import glob
 import matplotlib.pyplot as plt
 import cv2
-from matplotlib import lines
-import matplotlib.cm as cm
-from models.utils import plot_keypoints, plot_matches,process_resize
-from scipy.spatial.transform import Rotation as spr
 import sksurgerycore.transforms.matrix as stm
-import match_pairs
-import math
 import copy
-import sksurgerycore.transforms.matrix as skcm
+
+
+def select_matches(img1, img2):
+    '''
+    selecting matches
+    '''
+
+    # Define a callback function for mouse clicks
+    matches = []
+
+    count_right = 0
+    count_left = 0
+
+    def onclick(event):
+        nonlocal count_left, count_right
+        # Check which axes was clicked
+        if event.inaxes == ax[0]:
+            print('point 1')
+            matches.append([event.xdata, event.ydata, None, None])
+            ax[0].scatter(event.xdata, event.ydata, marker='+', s=100)
+            ax[0].text(event.xdata, event.ydata, count_left)
+            plt.draw()
+            count_left += 1
+        elif event.inaxes == ax[1]:
+            print('point 2')
+            matches[-1][2:] = [event.xdata, event.ydata]
+            ax[1].scatter(event.xdata, event.ydata, marker='+', s=100)
+            ax[1].text(event.xdata, event.ydata, count_right)
+            plt.draw()
+            count_right += 1
+
+    # Wait for the user to close the plot
+    # Display the images side by side
+    fig, ax = plt.subplots(1, 2, figsize=(10, 5))
+    ax[0].imshow(img1)
+    ax[1].imshow(img2)
+
+    # Attach the callback function to the figure
+    fig.canvas.mpl_connect('button_press_event', onclick)
+    plt.show()
+
+    # Convert the matches to numpy arrays
+    matches = np.array(matches)
+
+    return matches[:, :2], matches[:, 2:]
+
+
+def recover_pose(kp1, kp2, K):
+    E, mask = cv2.findEssentialMat(kp1.T, kp2.T, focal=1.0, pp=(0., 0.), method=cv2.FM_LMEDS, prob=0.999, threshold=3.0)
+
+    points, R, t, mask = cv2.recoverPose(E, kp1.T, kp2.T)
+    # R1, R2, t = cv2.decomposeEssentialMat(E)
+
+    return R, t
+
+
+def estimate_camera_poses(kp1_matched, kp2_matched, K):
+    # F, _ = cv2.findFundamentalMat(kp1_matched, kp2_matched, cv2.FM_RANSAC)
+    '''
+    F, _ = cv2.findFundamentalMat(kp1_matched.T, kp2_matched.T, cv2.FM_RANSAC)
+    if isinstance(F, np.ndarray):
+        pass
+    else:
+        return None
+    '''
+    kp1_norm = cv2.undistortPoints(np.expand_dims(kp1_matched, axis=2), K, None)
+    kp2_norm = cv2.undistortPoints(np.expand_dims(kp2_matched, axis=2), K, None)
+
+    # Estimate the essential matrix using the normalized points
+    E, _ = cv2.findEssentialMat(kp1_norm, kp2_norm, K)
+
+    # E = np.transpose(K) @ F[:3] @ K
+    # E = np.matmul(np.matmul(K.T, F), K)
+
+    # E = K.T @ F @ K
+    # E = np.matmul(np.matmul(np.transpose(K), F), K)
+
+    _, R, t, _ = cv2.recoverPose(E, kp1_matched.T, kp2_matched.T, K)
+
+    U, _, Vt = np.linalg.svd(E)
+    W = np.array([[0, -1, 0], [1, 0, 0], [0, 0, 1]])
+    R = np.matmul(np.matmul(U, W), Vt)
+    t = U[:, 2]
+
+    # Check for the correct rotation matrix
+    if np.linalg.det(R) < 0:
+        R = -R
+        t = -t
+
+    return R, t
+
+
+def normalize_keypoints(norm_kpts, camera_matrix, dist_coeffs):
+    # Get camera parameters
+    cx = camera_matrix[0, 2]
+    cy = camera_matrix[1, 2]
+    fx = camera_matrix[0, 0]
+    fy = camera_matrix[1, 1]
+    #dist_coeffs = camera_matrix[:, 4:]
+
+    # Normalize keypoints
+    #norm_kpts = cv2.undistortPoints(norm_kpts.reshape(-1, 1, 2), camera_matrix, dist_coeffs, None, None)
+    norm_kpts = norm_kpts.reshape(-1, 2)
+    norm_kpts[:, 0] = (norm_kpts[:, 0] - cx) / fx
+    norm_kpts[:, 1] = (norm_kpts[:, 1] - cy) / fy
+
+    return norm_kpts
+
+
+def manually_match_features(img1, img2):
+    ''' Function used to manually annotate feature matches between images, returning the annotated matches.
+
+    The function will plot the two input images side by side.
+    The user then selects matching points between images, marked on the images as the user does so.
+    When the user closes the window of the subplots, the matched keypoints are returned.
+
+    Args:
+        img1 (UxV):
+        img2 (UxV):
+
+    Returns:
+
+    '''
+    # Plot images side by side
+    fig, ax = plt.subplots(1, 2)
+    ax[0].imshow(img1)
+    ax[1].imshow(img2)
+    plt.show(block=False)
+
+    # Select matching points
+    matches = []
+    fig.canvas.set_window_title('Click on matching points. Close the window when finished.')
+    for i in range(4):
+        fig.canvas.manager.window.activateWindow()
+        fig.canvas.manager.window.raise_()
+        pts = plt.ginput(n=1, timeout=0, show_clicks=True)
+        matches.append(pts)
+
+    # Convert matching points to pixel coordinates
+    matches = np.array(matches)
+    matches = matches.astype(int)
+
+    # Save matches as np arrays
+    #np.save('matches_img1.npy', matches[0])
+    #np.save('matches_img2.npy', matches[1])
+
+    return matches
+
 
 def interpolate_between_lines(kp1_matched,  kp2_matched, interp_between = [[1,0],[5,4], [4,3], [1,5]], num_interp_pnts = 10):
     # 0->1
@@ -131,7 +269,7 @@ def extrinsic_vecs_to_matrix(rvec, tvec):
     """
     rotation_matrix = (cv2.Rodrigues(rvec))[0]
     transformation_matrix = \
-        skcm.construct_rigid_transformation(rotation_matrix, tvec)
+        stm.construct_rigid_transformation(rotation_matrix, tvec)
     return transformation_matrix
 
 def extrinsic_matrix_to_vecs(transformation_matrix):

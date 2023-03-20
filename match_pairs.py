@@ -104,12 +104,15 @@ def load_data(type, folder, frame_rate=1):
     
     ########################### create pairs info file if it doesn't already exist
     if not os.path.isfile(pairs_info):
+        if not os.path.isdir(f'{project_path}/assets/pairs_info'):
+            os.makedirs(f'{project_path}/assets/pairs_info')
         # Reloading frames_path in case names have been changed
         frames_paths = sorted(glob.glob(f'{input_dir}/*.*'))
         f = open(pairs_info,"w+")
         for idx in np.arange(0,len(frames_paths)-1, frame_rate):
             # path of img 1
-            pth_1 = frames_paths[idx].split('/')[-1]
+            #pth_1 = frames_paths[idx].split('/')[-1]
+            pth_1 = frames_paths[0].split('/')[-1]
             # path of img 2
             pth_2 = frames_paths[idx+frame_rate].split('/')[-1]
 
