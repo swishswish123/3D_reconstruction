@@ -1,133 +1,30 @@
 # this file will perform a sparse 3D reconstruction. The output will be 3D points and colors (RGB)
 # you only need to adjust any variables under 'utils'
 
-import numpy as np
-from pathlib import Path
 import os
 import glob
-import matplotlib.pyplot as plt
-import cv2
-from matplotlib import lines
-import matplotlib.cm as cm
-from models.utils import plot_keypoints, plot_matches,process_resize
-from scipy.spatial.transform import Rotation as spr
-import sksurgerycore.transforms.matrix as stm
-import match_pairs
-import copy
-from reconstruction_utils.utils import *
-from reconstruction_utils.reconstruction_algorithms import *
-from reconstruction_utils.utils import interpolate_between_lines
-
+from pathlib import Path
 import cv2
 import numpy as np
 from matplotlib import pyplot as plt
 import matplotlib as mpl
 
-
-def match_features(img1, img2):
-    # Plot images side by side
-    fig, ax = plt.subplots(1, 2)
-    ax[0].imshow(img1)
-    ax[1].imshow(img2)
-    plt.show(block=False)
-
-    # Select matching points
-    matches = []
-    fig.canvas.set_window_title('Click on matching points. Close the window when finished.')
-    for i in range(4):
-        fig.canvas.manager.window.activateWindow()
-        fig.canvas.manager.window.raise_()
-        pts = plt.ginput(n=1, timeout=0, show_clicks=True)
-        matches.append(pts)
-
-    # Convert matching points to pixel coordinates
-    matches = np.array(matches)
-    matches = matches.astype(int)
-
-    # Save matches as np arrays
-    #np.save('matches_img1.npy', matches[0])
-    #np.save('matches_img2.npy', matches[1])
-
-    return matches
+import match_pairs
 
 
-def select_matches(img1, img2):
-    '''
-    selecting matches
-    '''
+from reconstruction_utils.reconstruction_algorithms import triangulate_points_opencv, stereo_rectify_method, method_3, get_xyz, get_xyz_method_prince
 
-
-
-    # Define a callback function for mouse clicks
-    matches = []
-
-    def onclick(event):
-        # Check which axes was clicked
-        if event.inaxes == ax[0]:
-            print('point 1')
-            matches.append([event.xdata, event.ydata, None, None])
-            ax[0].scatter(event.xdata, event.ydata, marker='+', s=100, color='red')
-            plt.draw()
-        elif event.inaxes == ax[1]:
-            print('point 2')
-            matches[-1][2:] = [event.xdata, event.ydata]
-            ax[1].scatter(event.xdata, event.ydata, marker='+', s=100, color='red')
-            plt.draw()
-
-    #fig, ax = plt.subplots(1, 2, figsize=(10, 5))
-    # Attach the callback function to the figure
-    #fig.canvas.mpl_connect('button_press_event', onclick)
-
-    # Wait for the user to close the plot
-    # Display the images side by side
-    fig, ax = plt.subplots(1, 2, figsize=(10, 5))
-    #mpl.use('TkAgg')
-    ax[0].imshow(img1)
-    ax[1].imshow(img2)
-
-
-    fig.canvas.mpl_connect('button_press_event', onclick)
-
-    plt.show()
-
-    #fig.canvas.mpl_connect('button_press_event', onclick)
-
-    # Convert the matches to numpy arrays
-    matches = np.array(matches)
-
-    #[381, 500] [192,324]
-    #[1825,500] [1282,580]
-    # 500,847]  [290, 608]
-    # [1705, 815] [1184, 993]
-    # [708,673]   [372,500]
-    #[708,488] [323, 346]
-    # [975,482], [497, 368]
-    #
-    return matches[:, :2], matches[:, 2:]
+from reconstruction_utils.utils import get_matched_keypoints_superglue, get_matched_keypoints_sift, extrinsic_matrix_to_vecs, extrinsic_vecs_to_matrix, estimate_camera_poses, select_matches
 
 
 if __name__=='__main__':
-    '''
-    method leave as 'opencv'
 
-    type is the parent folder of the data (right under assets)
-    folder is the name of the folder right under assets but on top of your image folder
-    so it would be:
-    
-    superglue/assets/{type}/{folder}/images
-
-    frame rate leave as 1
-    
-    tracking leave as aruCo
-    
-    
-    '''
     project_path = Path(__file__).parent.resolve()
     mpl.use('TkAgg')
 
     ########################## PARAMS ###################################
     # method of performing 3D reconstruction
-    method ='prince' # opencv/sksurgery/online/prince
+    method ='opencv' # opencv/sksurgery/online/prince
     # parent folder of data type
     type='aruco' # random / phantom / EM_tracker_calib /tests
     # folder right on top of images
@@ -143,7 +40,7 @@ if __name__=='__main__':
     # determines space between images we pick
     frame_rate = 1
     # tracking type we're using
-    TRACKING = 'aruCo' # EM / aruCo
+    TRACKING = 'aruCo' # EM / aruCo / False
     
     # change to the correct folder where intrinsics and distortion located
     intrinsics = np.loadtxt(f'{project_path}/calibration/mac_calibration/intrinsics.txt')
@@ -152,8 +49,8 @@ if __name__=='__main__':
     # method of getting keypoints and matching between frames
     # sift- sift for feature matching
     # superglue- uses superglue for feature matching
-    # ground_truth- you will manually label corresponding points between frames
-    matching_method = 'sift' # sift / superglue /ground_truth
+    # manual- you will manually label corresponding points between frames
+    matching_method = 'manual' # sift / superglue / manual
 
     ######################## PERFORMING SUPERGLUE MATCHING ########################################
     # if superglue is selected, superglue matching is performed before running and output is saved under outputs
@@ -223,7 +120,7 @@ if __name__=='__main__':
             kp1_matched, kp2_matched = get_matched_keypoints_superglue(f'{output_dir}/{im1}_{im2}_matches.npz')
         elif matching_method == 'sift':
             kp1_matched, kp2_matched = get_matched_keypoints_sift(img1_original, img2_original)
-        elif matching_method =='ground_truth':
+        elif matching_method =='manual':
             kp1_matched, kp2_matched = select_matches(img1_original, img2_original)
             print(kp1_matched, kp2_matched)
         # if no matches found skip to next frame pair, otherwise undistort kpts
@@ -304,16 +201,7 @@ if __name__=='__main__':
 
             D3_points_all += D3_points
             D3_colors_all += D3_colors
-        
-        elif method=='sksurgery':
 
-            # extracting R and T vectors 
-            r, t = extrinsic_matrix_to_vecs(T_1_to_2)
-            R = T_1_to_2[:3,:3]
-            T = np.array([t[3:]]).T
-            D3_points = triangulate_points_sksurgery(input_undistorted_points, intrinsics, intrinsics, R, T)
-            D3_points_all += np.ndarray.tolist(D3_points.T)
-            D3_colors_all += np.ndarray.tolist(D3_colors)
         elif method=='online':
 
             D3_points = get_xyz(kp1_matched, intrinsics, im1_poses[:3,:3], im1_poses[:3,3:], kp2_matched, intrinsics, im2_poses[:3,:3], im2_poses[:3,3:])
