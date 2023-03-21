@@ -30,7 +30,7 @@ def generate_aruco_board_for_printing(aruco_dict=cv2.aruco.DICT_4X4_50,
         marker_length: length of each marker in mm
         markers_w: number of aruco markers along the width of the grid
         markers_h: number of aruco markers along the height of the grid
-        pixels_per_bit: ################### 
+        pixels_per_bit: ###################
 
     Returns:
         saves image of aruco board under current project path
