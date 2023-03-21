@@ -10,3 +10,5 @@ __pycache__/
 reconstructions/
 other_attempts_or_files/
 *.egg-info/
+/.pytest_cache/
+/.vscode/

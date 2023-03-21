@@ -73,8 +73,8 @@ def aruco_board_pose_estimation(frame, aruco_dict, intrinsics, distortion):
     # gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
     markers_w = 5  # Number of markers in the X direction.
     markers_h = 7  # Number of markers in the y direction.
-    marker_length = 0.04  # length of aruco marker (m)
-    marker_separation = 0.01  # separation between markers (m)
+    marker_length = 16  # length of aruco marker (m)
+    marker_separation = 5  # separation between markers (m)
 
     # creat an aruco Board (The ids in ascending order starting on 0)
     grid_board = cv2.aruco.GridBoard((markers_w, markers_h),
@@ -82,9 +82,11 @@ def aruco_board_pose_estimation(frame, aruco_dict, intrinsics, distortion):
                                      marker_separation,
                                      aruco_dict)
 
+    #detector = cv2.aruco.ArucoDetector()
     parameters = cv2.aruco.DetectorParameters()
-
+    # corners, ids, rejected_img_points = detector.detectMarkers(frame)
     corners, ids, rejected_img_points = cv2.aruco.detectMarkers(frame, aruco_dict, parameters=parameters)
+
     rvec = None
     tvec = None
 
@@ -102,7 +104,7 @@ def aruco_board_pose_estimation(frame, aruco_dict, intrinsics, distortion):
             cv2.drawFrameAxes(frame, intrinsics, distortion, rvec, tvec, 0.05)
 
             # adding as text the distance from camera to aruco marker (z coord of tvec)
-            cv2.putText(frame, str(int(tvec[2])), (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 3)
+            cv2.putText(frame, str(tvec[2][0]), (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 3)
     else:
         # if no markers detected, placing text that board wasn't found
         cv2.putText(frame, 'no board detected', (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 3)

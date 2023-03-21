@@ -34,18 +34,12 @@ if __name__=='__main__':
     marker_separation = (int)(marker_length * gap_ratio)
 
     # Create an aruco Board (The ids in ascending order starting on 0)
-    #aruco_dict = cv2.aruco.Dictionary_get(ar)
     aruco_dict = cv2.aruco.getPredefinedDictionary(ar)  # dictionary of markers provided
-    #grid_board = cv2.aruco.GridBoard_create(markers_w,
-    #                                        markers_h,
-    #                                        marker_length,
-    #                                        marker_separation,
-    #                                        aruco_dict)
-    # creat an aruco Board (The ids in ascending order starting on 0)
     grid_board = cv2.aruco.GridBoard((markers_w, markers_h),
                                      marker_length,
                                      marker_separation,
                                      aruco_dict)
+
     pixels_per_bit = 10
     width_millimetres = (markers_w * marker_length) + ((markers_w - 1) * marker_separation)
     height_millimetres = (markers_h * marker_length) + ((markers_h - 1) * marker_separation)
@@ -53,11 +47,11 @@ if __name__=='__main__':
     height_pixels = pixels_per_bit * ((markers_h * size_of_marker_in_bits) + ((markers_h - 1) * gap_between_markers_in_bits))
     img_size = (width_pixels, height_pixels)
 
-    img = cv2.aruco.drawPlanarBoard(board=grid_board,
-                                    outSize=img_size,
-                                    marginSize=0,
-                                    borderBits=border_bits
-                                    )
+    # generating image from board for printing
+    img = grid_board.generateImage(img_size,              # outSize size of the output image in pixels.
+                                   marginSize=0,          # minimum margins (in pixels) of the board in the output image
+                                   borderBits=border_bits # borderBits width of the marker borders.
+                                   )
 
     print(f"Load image into GIMP. Image size={width_pixels} x {height_pixels} pixels.")
     print(f"Set image size to: {width_millimetres} x {height_millimetres} millimetres")
