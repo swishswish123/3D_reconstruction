@@ -82,7 +82,7 @@ def aruco_single_pose_estimation(frame, aruco_dict, marker_length, intrinsics, d
             cv2.aruco.drawDetectedMarkers(annotated_frame, corners)
 
             # drawing axis of aruco
-            cv2.drawFrameAxes(annotated_frame, intrinsics, distortion, rvec, tvec, length=.2, thickness=3)
+            cv2.drawFrameAxes(annotated_frame, intrinsics, distortion, rvec, tvec, length=10, thickness=3)
 
             rvecs.append(rvec)
             tvecs.append(tvec)
@@ -140,7 +140,8 @@ def aruco_board_pose_estimation(frame, aruco_dict, grid_board, intrinsics, disto
             # draw detected markers corners on frame
             cv2.aruco.drawDetectedMarkers(annotated_frame, corners)
             # drawing axis of aruco marker board
-            cv2.drawFrameAxes(annotated_frame, intrinsics, distortion, rvec, tvec, 0.05)
+            #cv2.drawFrameAxes(annotated_frame, intrinsics, distortion, rvec, tvec, 0.05)
+            cv2.drawFrameAxes(annotated_frame, intrinsics, distortion, rvec, tvec, 25, thickness=5 )
             # adding as text the distance from camera to aruco marker (z coord of tvec)
             cv2.putText(annotated_frame, str(tvec[2][0]), (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 3)
     else:
@@ -263,7 +264,7 @@ def record_video_and_poses(save_folder,
             output, rvecs, tvecs = aruco_board_pose_estimation(frame, aruco_dict, grid_board, intrinsics, distortion)
         else:
             # if single marker is used
-            output, rvecs, tvecs = aruco_single_pose_estimation(frame, aruco_dict, intrinsics, distortion)
+            output, rvecs, tvecs = aruco_single_pose_estimation(frame, aruco_dict, marker_length, intrinsics, distortion)
 
         # showing labelled frame
         cv2.imshow('Estimated Pose', output)
@@ -278,20 +279,18 @@ def record_video_and_poses(save_folder,
                 if np.isnan(rvecs).all() or np.isnan(tvecs).all():
                     continue
                 else:
-                    save_frame(frame, frame_num, intrinsics, distortion)
+                    save_frame(frame, save_folder, frame_num, intrinsics, distortion)
                     rvecs_all.append(rvecs)
                     tvecs_all.append(tvecs)
         else:
             # if user didn't select record_all_frames, they will press
             # the key 'c' for capturing a frame
             if key == ord('c'):
-                # check if poses were recorded
                 if np.isnan(rvecs).all() or np.isnan(tvecs).all():
                     continue
-                else:
-                    save_frame(frame, frame_num, intrinsics, distortion)
-                    rvecs_all.append(rvecs)
-                    tvecs_all.append(tvecs)
+                save_frame(frame, save_folder, frame_num, intrinsics, distortion)
+                rvecs_all.append(rvecs)
+                tvecs_all.append(tvecs)
 
         frame_num += 1
         # if user presses 'q' they quit the recording
@@ -317,7 +316,7 @@ def main():
     # where to save data
     # folder will be structured as follows: assets/type/folder/images
     type = 'aruco'  # random / phantom / EM_tracker_calib / tests
-    folder = 'aruco_test'
+    folder = 'sofa'
     save_folder = f'{project_path}/assets/{type}/{folder}'
 
     RECORD_ALL = False
