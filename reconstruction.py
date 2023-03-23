@@ -13,7 +13,7 @@ import match_pairs
 
 from reconstruction_utils.reconstruction_algorithms import triangulate_points_opencv, stereo_rectify_method, method_3, get_xyz, get_xyz_method_prince
 
-from reconstruction_utils.utils import get_matched_keypoints_superglue, get_matched_keypoints_sift, extrinsic_matrix_to_vecs, extrinsic_vecs_to_matrix, estimate_camera_poses, select_matches, multiply_points_by_transform
+from reconstruction_utils.utils import get_matched_keypoints_superglue, get_matched_keypoints_sift, extrinsic_matrix_to_vecs, extrinsic_vecs_to_matrix, estimate_camera_poses, manually_match_features, multiply_points_by_transform
 
 
 def reconstruct_pairs(reconstruction_method, kp1_matched, kp2_matched, intrinsics, T1_to_T2):
@@ -83,49 +83,7 @@ def reconstruct_pairs(reconstruction_method, kp1_matched, kp2_matched, intrinsic
     return D3_points, colour_mask
 
 
-def get_image_poses(tracking_method, idx=None, frame_rate=None, poses=None, hand_eye=None,rvecs=None, tvecs=None, kp1_matched=None, kp2_matched=None, intrinsics=None):
-    """
-    Function to obtain pose matrix from image 1 to image 2
-    returns T1_to_T2 matrix
-    """
-
-    if tracking_method == 'EM':
-        # selecting poses information of current img pairs
-        ################## 2))))))))))))))
-        # im1_poses = poses[idx]
-        im1_poses = poses[0]
-        im2_poses = poses[idx + frame_rate]
-        # getting relative transform between two camera poses
-        # relative position between the two is going from the first image to the origin,
-        # then from origin to the second image
-        T1_to_T2 = hand_eye @ np.linalg.inv(im2_poses) @ im1_poses @ np.linalg.inv(hand_eye)
-
-    elif tracking_method == 'aruCo':
-        # selecting poses of aruco of current frame pair and converting to 4x4 matrix
-        ################## 3)))))))))))))))))))
-        #im1_mat = extrinsic_vecs_to_matrix(rvecs[idx], tvecs[idx]) #(4x4)
-        im1_mat = extrinsic_vecs_to_matrix(rvecs[0], tvecs[0])  # (4x4)
-        im2_mat = extrinsic_vecs_to_matrix(rvecs[idx + frame_rate], tvecs[idx + frame_rate])  # (4x4)
-        # relative transform between two camera poses
-        T1_to_T2 = im2_mat @ np.linalg.inv(im1_mat)  # (4x4)
-    else:
-        rvec_1 = np.zeros(3)
-        tvec_1 = np.zeros(3)
-
-        # estimating camera poses and converting rotation to vector
-        R2, tvec_2 = estimate_camera_poses(kp1_matched, kp2_matched, intrinsics)
-        rvec_2,_ = cv2.Rodrigues(R2)
-        # getting 4x4 camera poses
-        im1_poses = extrinsic_vecs_to_matrix(rvec_1, tvec_1)
-        im2_poses = extrinsic_vecs_to_matrix(rvec_2, tvec_2)
-        #TODO change this to correct transform back to original poses
-        T1_to_T2 = im2_poses @ np.linalg.inv(im1_poses)  # (4x4)
-
-    return T1_to_T2
-
-
-
-def get_image_poses_current(tracking_method ,idx=None, frame_rate=None, poses=None, hand_eye=None,rvecs=None, tvecs=None, kp1_matched=None, kp2_matched=None, intrinsics=None):
+def get_image_poses(tracking_method ,idx=None, frame_rate=None, poses=None, hand_eye=None,rvecs=None, tvecs=None, kp1_matched=None, kp2_matched=None, intrinsics=None):
     """
     Function to obtain pose matrix from image 1 to image 2
     returns T1_to_T2 matrix
@@ -277,7 +235,7 @@ def sparse_reconstruction_from_video(data_path,calibration_path,save_path,
         elif matching_method == 'sift':
             kp1_matched, kp2_matched = get_matched_keypoints_sift(img1_original, img2_original)
         elif matching_method == 'manual':
-            kp1_matched, kp2_matched = select_matches(img1_original, img2_original)
+            kp1_matched, kp2_matched = manually_match_features(img1_original, img2_original)
             print(kp1_matched, kp2_matched)
 
         # if no matches found skip to next frame pair
@@ -306,11 +264,11 @@ def sparse_reconstruction_from_video(data_path,calibration_path,save_path,
         # ########################### IMAGE POSES ################################
         # obtaining image posees between current frame (N) and the next (N+1)
         if tracking_method == 'EM':
-            TN_to_TN_plus_1 = get_image_poses_current(tracking_method, idx=idx, frame_rate=frame_rate, poses=poses, hand_eye=hand_eye)
+            TN_to_TN_plus_1 = get_image_poses(tracking_method, idx=idx, frame_rate=frame_rate, poses=poses, hand_eye=hand_eye)
         elif tracking_method =='aruCo':
-            TN_to_TN_plus_1 = get_image_poses_current(tracking_method, idx=idx, frame_rate=frame_rate, rvecs=rvecs, tvecs=tvecs, kp1_matched=None, kp2_matched=None, intrinsics=None)
+            TN_to_TN_plus_1 = get_image_poses(tracking_method, idx=idx, frame_rate=frame_rate, rvecs=rvecs, tvecs=tvecs, kp1_matched=None, kp2_matched=None, intrinsics=None)
         else: # estimate_pose
-            TN_to_TN_plus_1 = get_image_poses_current(tracking_method,  kp1_matched=kp1_matched, kp2_matched=kp2_matched, intrinsics=intrinsics)
+            TN_to_TN_plus_1 = get_image_poses(tracking_method,  kp1_matched=kp1_matched, kp2_matched=kp2_matched, intrinsics=intrinsics)
 
         # ######################## TRIANGULATION- GETTING 3D POINTS ##################################
         D3_points, color_mask = reconstruct_pairs(reconstruction_method, kp1_matched, kp2_matched, intrinsics, TN_to_TN_plus_1)

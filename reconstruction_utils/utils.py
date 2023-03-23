@@ -6,9 +6,19 @@ import sksurgerycore.transforms.matrix as stm
 import copy
 
 
-def select_matches(img1, img2):
-    '''
-    selecting matches
+def manually_match_features(img1, img2):
+    ''' Function used to manually annotate feature matches between images, returning the annotated matches.
+
+    The function will plot the two input images side by side.
+    The user then selects matching points between images, marked on the images as the user does so.
+    When the user closes the window of the subplots, the matched keypoints are returned.
+
+    Args:
+        img1 (UxV):
+        img2 (UxV):
+
+    Returns:
+
     '''
 
     # Define a callback function for mouse clicks
@@ -52,6 +62,7 @@ def select_matches(img1, img2):
 
 
 def recover_pose(kp1, kp2, K):
+    # TODO use or remove
     E, mask = cv2.findEssentialMat(kp1.T, kp2.T, focal=1.0, pp=(0., 0.), method=cv2.FM_LMEDS, prob=0.999, threshold=3.0)
 
     points, R, t, mask = cv2.recoverPose(E, kp1.T, kp2.T)
@@ -59,11 +70,13 @@ def recover_pose(kp1, kp2, K):
 
     return R, t
 
+
 def multiply_points_by_transform(D3_points, T):
     D3_hom = cv2.convertPointsToHomogeneous(D3_points).squeeze()
     D3_transformed_points_hom =   T @ D3_hom.T
     D3_transformed = cv2.convertPointsFromHomogeneous( D3_transformed_points_hom.T ).squeeze()
     return D3_transformed
+
 
 def estimate_camera_poses(kp1_matched, kp2_matched, K):
     # F, _ = cv2.findFundamentalMat(kp1_matched, kp2_matched, cv2.FM_RANSAC)
@@ -102,175 +115,6 @@ def estimate_camera_poses(kp1_matched, kp2_matched, K):
     return R, t
 
 
-def normalize_keypoints(norm_kpts, camera_matrix, dist_coeffs):
-    # Get camera parameters
-    cx = camera_matrix[0, 2]
-    cy = camera_matrix[1, 2]
-    fx = camera_matrix[0, 0]
-    fy = camera_matrix[1, 1]
-    #dist_coeffs = camera_matrix[:, 4:]
-
-    # Normalize keypoints
-    #norm_kpts = cv2.undistortPoints(norm_kpts.reshape(-1, 1, 2), camera_matrix, dist_coeffs, None, None)
-    norm_kpts = norm_kpts.reshape(-1, 2)
-    norm_kpts[:, 0] = (norm_kpts[:, 0] - cx) / fx
-    norm_kpts[:, 1] = (norm_kpts[:, 1] - cy) / fy
-
-    return norm_kpts
-
-
-def manually_match_features(img1, img2):
-    ''' Function used to manually annotate feature matches between images, returning the annotated matches.
-
-    The function will plot the two input images side by side.
-    The user then selects matching points between images, marked on the images as the user does so.
-    When the user closes the window of the subplots, the matched keypoints are returned.
-
-    Args:
-        img1 (UxV):
-        img2 (UxV):
-
-    Returns:
-
-    '''
-    # Plot images side by side
-    fig, ax = plt.subplots(1, 2)
-    ax[0].imshow(img1)
-    ax[1].imshow(img2)
-    plt.show(block=False)
-
-    # Select matching points
-    matches = []
-    fig.canvas.set_window_title('Click on matching points. Close the window when finished.')
-    for i in range(4):
-        fig.canvas.manager.window.activateWindow()
-        fig.canvas.manager.window.raise_()
-        pts = plt.ginput(n=1, timeout=0, show_clicks=True)
-        matches.append(pts)
-
-    # Convert matching points to pixel coordinates
-    matches = np.array(matches)
-    matches = matches.astype(int)
-
-    # Save matches as np arrays
-    #np.save('matches_img1.npy', matches[0])
-    #np.save('matches_img2.npy', matches[1])
-
-    return matches
-
-
-def interpolate_between_lines(kp1_matched,  kp2_matched, interp_between = [[1,0],[5,4], [4,3], [1,5]], num_interp_pnts = 10):
-    # 0->1
-    # 1->5
-    # 5->3
-    new_kp1 = copy.deepcopy(kp1_matched)
-    new_kp2 = copy.deepcopy(kp2_matched)
-
-    for point in interp_between:
-        x1_start, y1_start = kp1_matched[point[0]]
-        x1_end, y1_end = kp1_matched[point[1]]
-
-        x2_start, y2_start = kp2_matched[point[0]]
-        x2_end, y2_end = kp2_matched[point[1]]
-
-        # creating x values to interpolate
-        x1 = np.linspace(x1_start, x1_end, num_interp_pnts)[1:-1]
-        # interpolating to get y of these x points
-        y1 = np.interp(x1, [x1_start,x1_end],[y1_start,y1_end])
-        # stacking and combining
-        new_kp1 = np.concatenate([new_kp1, np.vstack([x1,y1]).T])
-
-        # creating x values to interpolate
-        x2 = np.linspace(x2_start, x2_end, num_interp_pnts)[1:-1]
-        # interpolating to get y of these x points
-        y2 = np.interp(x2, [x2_start,x2_end],[y2_start,y2_end])
-        # stacking and combining
-        new_kp2 = np.concatenate([new_kp2, np.vstack([x2,y2]).T])
-
-    plt.figure()
-    plt.scatter(new_kp1[:,0], new_kp1[:,1])
-    plt.scatter(new_kp2[:,0], new_kp2[:,1])
-    plt.savefig('testing.png')
-    return new_kp2
-
-
-def solveAXEqualsZero(A):
-    # TO DO: Write this routine - it should solve Ah = 0. You can do this using SVD. Consult your notes! 
-    # Hint: SVD will be involved. 
-    
-    _,_,V = np.linalg.svd(A)
-    h = V.T[:,-1]
-  
-    return h
-
-
-def calcBestHomography(pts1Cart, pts2Cart):
-    
-    # This function should apply the direct linear transform (DLT) algorithm to calculate the best 
-    # homography that maps the cartesian points in pts1Cart to their corresonding matching cartesian poitns 
-    # in pts2Cart.
-    
-    # This function calls solveAXEqualsZero. Make sure you are wary of how to reshape h into a 3 by 3 matrix. 
-    
-    n_points = pts1Cart.shape[1]
-    
-    # TO DO: replace this:
-    # H = np.identity(3)
-
-    # TO DO: 
-    # First convert points into homogeneous representation
-    # Hint: we've done this before  in the skeleton code we provide.
-    pts1Hom = np.concatenate((pts1Cart, np.ones((1,pts1Cart.shape[1]))), axis=0)
-    pts2Hom = np.concatenate((pts2Cart, np.ones((1,pts2Cart.shape[1]))), axis=0)
-    
-    # Then construct the matrix A, size (n_points * 2, 9)
-    A = np.zeros((n_points*2, 9))
-    
-    row_num = 0
-    
-    # Consult the notes!
-    for idx in range(n_points):
-        u = pts1Hom[0,idx]
-        v = pts1Hom[1,idx]
-        w = pts1Hom[2,idx]
-        
-        x = pts2Hom[0,idx]
-        y = pts2Hom[1,idx]
-        z = pts2Hom[2,idx]
-        
-        first_row = np.array( [0, 0, 0, -u, -v, -w,   y*u,  y*v,  y])
-        second_row = np.array([u, v, w,  0,  0,  0,  -x*u, -x*v, -x])
-         
-        A[row_num,:] = first_row
-        row_num+=1
-        A[row_num,:] = second_row
-        row_num+=1
-        
-    # Solve Ah = 0 using solveAXEqualsZero and get h.
-    h = solveAXEqualsZero(A)
-    
-    # Reshape h into the matrix H, values of h go first into rows of H
-    H = h.reshape((3, 3))
-    
-    return H
-
-
-def un_normalise(kp_norm, intrinsics):
-    kp_hom = cv2.convertPointsToHomogeneous(kp_norm).squeeze()
-    kp_hom= kp_hom@intrinsics
-    kp_orig = cv2.convertPointsFromHomogeneous(kp_hom).squeeze()
-    return kp_orig
-
-
-def normalise(kp_matched, intrinsics):
-    kp_hom = cv2.convertPointsToHomogeneous(kp_matched).squeeze()
-    #kp_matched = np.matmul(kp_hom, np.linalg.inv(intrinsics))
-    kp_matched_hom = kp_hom @ np.linalg.inv(intrinsics)
-    
-    kp_matched = cv2.convertPointsFromHomogeneous(kp_matched_hom).squeeze()
-    return kp_matched
-
-
 def extrinsic_vecs_to_matrix(rvec, tvec):
     """
     Method to convert rvec and tvec to a 4x4 matrix.
@@ -307,44 +151,16 @@ def get_projection_matrices(rvec_1,rvec_2, tvec_1, tvec_2, K):
     return P0, P1
 
 
-def l2r_to_p2d(p2d, l2r):
-    """
-    Function to convert l2r array to p2d array, which removes last row of l2r to create p2d.
-    Notes. l2r_to_p2d() is used in triangulate_points_hartley() to avoid too many variables in one method (see R0914).
-    :param p2d: [3x4] narray
-    :param l2r: [4x4] narray
-    :return p2d: [3x4] narray
-    """
-
-    for dummy_row_index in range(0, 3):
-        for dummy_col_index in range(0, 4):
-            p2d[dummy_row_index, dummy_col_index] = l2r[dummy_row_index, dummy_col_index]
-
-    return p2d
-
-
-def plot_image_pair(imgs, dpi=100, size=6, pad=.5):
-
-    figsize = (size*2, size*3/4) 
-    _, ax = plt.subplots(1, 2, figsize=figsize, dpi=dpi)
-    for i in range(2):
-        ax[i].imshow(imgs[i], cmap=plt.get_cmap('gray'), vmin=0, vmax=255)
-        ax[i].get_yaxis().set_ticks([])
-        ax[i].get_xaxis().set_ticks([])
-        for spine in ax[i].spines.values():  # remove frame
-            spine.set_visible(False)
-    plt.tight_layout(pad=pad)
-
-
-def read_img(path):
-    image = cv2.imread(str(path))
-    #w, h = image.shape[1], image.shape[0]
-    #w_new, h_new = process_resize(w, h, [640, 480])
-    #image = cv2.resize(image.astype('float32'), (w_new, h_new))
-    return image
-
-
 def img_poses_reformat(im_poses):
+    """
+    function extractin pose information of 4x4 matrix to be used for prince reconstruction method
+
+    Args:
+        im_poses (4x4): np array 4x4 pose matrix
+
+    Returns:
+        decomposed pose matrix to be used for prince method reconstruction
+    """
     # MATRICES OF EQUATION 1
     tx = im_poses[0,-1]
     ty = im_poses[1,-1]
@@ -363,12 +179,6 @@ def img_poses_reformat(im_poses):
     w23 = im_poses[1,2]
 
     return tx, ty, tz, w31, w11, w21, w32, w12, w22, w33, w13, w23
-
-
-def skew(x):
-    return np.array([[0, -x[2], x[1]],
-                     [x[2], 0, -x[0]],
-                     [-x[1], x[0], 0]])
 
 
 def get_matched_keypoints_superglue(pair_match):
