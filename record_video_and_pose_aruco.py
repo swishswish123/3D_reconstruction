@@ -6,7 +6,7 @@ from pathlib import Path
 import os
 
 
-def aruco_display(corners, ids, rejected, image, rvecs, tvecs):
+def aruco_display(corners, ids, image, tvecs):
     if len(corners) > 0:
         # ids of aruco markers detected
         ids = ids.flatten()
@@ -36,7 +36,10 @@ def aruco_display(corners, ids, rejected, image, rvecs, tvecs):
         avg_z = np.array(tvecs).mean(axis=0).squeeze()
 
         # WRITING DISTANCE
-        cv2.putText(image, str(int(avg_z[2])), (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 3)
+        # adding as text the distance from camera to aruco marker (z coord of tvec)
+        cv2.putText(image, f'x: {str(tvecs[0][0])}', (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 3)
+        cv2.putText(image, f'y: {str(tvecs[1][0])}', (50, 100), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 3)
+        cv2.putText(image, f'z: {str(tvecs[2][0])}', (50, 150), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 3)
 
     return image
 
@@ -68,8 +71,8 @@ def aruco_single_pose_estimation(frame, aruco_dict, marker_length, intrinsics, d
     parameters = cv2.aruco.DetectorParameters()
     corners, ids, rejected_img_points = cv2.aruco.detectMarkers(annotated_frame, aruco_dict, parameters=parameters)
 
-    rvecs = []
-    tvecs = []
+    rvec = np.nan
+    tvec = np.nan
     if len(corners) > 0:
         # going through each detected aruco marker
         for i in range(0, len(ids)):
@@ -77,20 +80,21 @@ def aruco_single_pose_estimation(frame, aruco_dict, marker_length, intrinsics, d
             rvec, tvec, markerPoints = cv2.aruco.estimatePoseSingleMarkers(corners[i],
                                                                            marker_length, intrinsics,
                                                                            distortion)
-
+            rvec = rvec[0].T
+            tvec = tvec[0].T
             # draw detected markers corners and borders
             cv2.aruco.drawDetectedMarkers(annotated_frame, corners)
 
             # drawing axis of aruco
             cv2.drawFrameAxes(annotated_frame, intrinsics, distortion, rvec, tvec, length=10, thickness=3)
 
-            rvecs.append(rvec)
-            tvecs.append(tvec)
+            #rvecs.append(rvec)
+            #tvecs.append(tvec)
 
-    # adding distance to camera and aruco number
-    annotated_frame = aruco_display(corners, ids, rejected_img_points, annotated_frame, rvecs, tvecs)
+        # adding distance to camera and aruco number
+        annotated_frame = aruco_display(corners, ids, annotated_frame, tvec)
 
-    return annotated_frame, rvecs, tvecs
+    return annotated_frame, rvec, tvec
 
 
 def aruco_board_pose_estimation(frame, aruco_dict, grid_board, intrinsics, distortion):
@@ -127,8 +131,8 @@ def aruco_board_pose_estimation(frame, aruco_dict, grid_board, intrinsics, disto
     # corners, ids, rejected_img_points = detector.detectMarkers(frame)
     corners, ids, rejected_img_points = cv2.aruco.detectMarkers(gray, aruco_dict, parameters=parameters)
 
-    rvec = None
-    tvec = None
+    rvec = np.nan
+    tvec = np.nan
 
     # if at least one marker is detected
     if len(corners) > 0:
@@ -139,11 +143,11 @@ def aruco_board_pose_estimation(frame, aruco_dict, grid_board, intrinsics, disto
         if success:
             # draw detected markers corners on frame
             cv2.aruco.drawDetectedMarkers(annotated_frame, corners)
+            # drawing x,y,z distances and aruco numbers detected
+            annotated_frame = aruco_display(corners, ids, frame, tvec)
             # drawing axis of aruco marker board
-            #cv2.drawFrameAxes(annotated_frame, intrinsics, distortion, rvec, tvec, 0.05)
             cv2.drawFrameAxes(annotated_frame, intrinsics, distortion, rvec, tvec, 25, thickness=5 )
-            # adding as text the distance from camera to aruco marker (z coord of tvec)
-            cv2.putText(annotated_frame, str(tvec[2][0]), (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 3)
+
     else:
         # if no markers detected, placing text that board wasn't found
         cv2.putText(annotated_frame, 'no board detected', (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 3)
@@ -177,6 +181,22 @@ def save_frame(img, save_folder, frame_num, intrinsics, distortion):
     cv2.imwrite('{}/undistorted/{:08d}.png'.format(save_folder, frame_num), dst)  # save_folder, i
 
 
+def analyse_frame(board, frame,aruco_dict, intrinsics, distortion, grid_board='', marker_length=0):
+
+    # obtaining poses-
+    if board:
+        # obtaining pose estimation of board
+        output, rvec, tvec = aruco_board_pose_estimation(frame, aruco_dict, grid_board, intrinsics, distortion)
+    else:
+        # if single marker is used
+        output, rvec, tvec = aruco_single_pose_estimation(frame, aruco_dict, marker_length, intrinsics, distortion)
+
+    # showing labelled frame
+    cv2.imshow('Estimated Pose', output)
+
+    return  rvec, tvec
+
+
 def record_video_and_poses(save_folder,
                            intrinsics,
                            distortion,
@@ -207,7 +227,7 @@ def record_video_and_poses(save_folder,
         save_folder (str): folder where you want the images and the camera poses to be saved
         intrinsics (ndarray): intrinsics matrix of camera you'll be recording with
         distortion (ndarray): distortion matrix of camera you'll be recording with
-        cap_port (int): port of camera used for cv2.VideoCapture()- if using your computer's camera this is typically 0
+        cap_port (int/str): port of camera used for cv2.VideoCapture()- if using your computer's camera this is typically 0. You can also put the directory of a video to be read by opencv!
         board (bool): if True, the poses will be estimated based on aruco board.
                       If false, poses will be estimated based on single aruco marker
         record_all_frames (bool): If true this will record all the frames at set frame rate.
@@ -221,6 +241,7 @@ def record_video_and_poses(save_folder,
         marker_separation (float): separation between markers (mm)
 
     Returns:
+        object:
         The original images will be saved under <save_folder>/images/*.png
         The undistorted images will be saved under <save_folder>/undistorted/*.png
         The rotation poses of the aruco relative to the camera will be saved under <save_folder>/rvecs.npy
@@ -245,29 +266,26 @@ def record_video_and_poses(save_folder,
 
     frame_num = 0
 
+    # initialising board object
+    if board:
+        # creat an aruco Board (The ids in ascending order starting on 0)
+        grid_board = cv2.aruco.GridBoard((markers_w, markers_h),
+                                         marker_length,
+                                         marker_separation,
+                                         aruco_dict)
+    else:
+        grid_board = None
+
+    rvecs = np.nan
+    tvecs = np.nan
     # recording frames and poses
-    while True:
+    while cap.isOpened():
+
         # extracting current frame
         ret, frame = cap.read()
+
         if not ret:
             break
-
-        # obtaining poses-
-        if board:
-
-            # creat an aruco Board (The ids in ascending order starting on 0)
-            grid_board = cv2.aruco.GridBoard((markers_w, markers_h),
-                                             marker_length,
-                                             marker_separation,
-                                             aruco_dict)
-            # obtaining pose estimation of board
-            output, rvecs, tvecs = aruco_board_pose_estimation(frame, aruco_dict, grid_board, intrinsics, distortion)
-        else:
-            # if single marker is used
-            output, rvecs, tvecs = aruco_single_pose_estimation(frame, aruco_dict, marker_length, intrinsics, distortion)
-
-        # showing labelled frame
-        cv2.imshow('Estimated Pose', output)
 
         # recording frames
         key = cv2.waitKey(1) & 0xFF
@@ -275,24 +293,22 @@ def record_video_and_poses(save_folder,
             # if user selected to record all frames, we record all frames within
             # frame rate specified
             if frame_num % frame_rate == 0:
-                # if no tracking data, don't record this frame
-                if np.isnan(rvecs).all() or np.isnan(tvecs).all():
-                    continue
-                else:
-                    save_frame(frame, save_folder, frame_num, intrinsics, distortion)
-                    rvecs_all.append(rvecs)
-                    tvecs_all.append(tvecs)
+                rvec, tvec = analyse_frame(board, frame,aruco_dict, intrinsics, distortion, grid_board=grid_board, marker_length=marker_length)
         else:
             # if user didn't select record_all_frames, they will press
             # the key 'c' for capturing a frame
             if key == ord('c'):
-                if np.isnan(rvecs).all() or np.isnan(tvecs).all():
-                    continue
-                save_frame(frame, save_folder, frame_num, intrinsics, distortion)
-                rvecs_all.append(rvecs)
-                tvecs_all.append(tvecs)
+                rvec, tvec= analyse_frame(board, frame,aruco_dict, intrinsics, distortion, grid_board='', marker_length=marker_length)
+
+        # saving frame and pose data if poses are found
+        if not np.isnan(rvec).any() or not np.isnan(tvec).any():
+            print(f'saving {tvec}' )
+            save_frame(frame, save_folder, frame_num, intrinsics, distortion)
+            rvecs_all.append(rvec)
+            tvecs_all.append(tvec)
 
         frame_num += 1
+
         # if user presses 'q' they quit the recording
         if key == ord("q"):
             break
@@ -310,28 +326,35 @@ def record_video_and_poses(save_folder,
 
 
 def main():
+
     BOARD = True
     project_path = Path(__file__).parent.resolve()
 
     # where to save data
     # folder will be structured as follows: assets/type/folder/images
     type = 'aruco'  # random / phantom / EM_tracker_calib / tests
-    folder = 'sofa'
+    folder = 'face'
     save_folder = f'{project_path}/assets/{type}/{folder}'
 
-    RECORD_ALL = False
+    RECORD_ALL = True
     FRAME_RATE = 1
+
+    PORT = 'assets/test.MOV'
+    PORT = 0
 
     ar = cv2.aruco.DICT_4X4_50  # aruco dictionary we will use
 
-    intrinsics = np.loadtxt(f'{project_path}/calibration/mac_calibration/intrinsics.txt')
-    distortion = np.loadtxt(f'{project_path}/calibration/mac_calibration/distortion.txt')
+    intrinsics = np.loadtxt(f'{project_path}/calibration/mac_calibration_improved/intrinsics.txt')
+    distortion = np.loadtxt(f'{project_path}/calibration/mac_calibration_improved/distortion.txt')
+
+    #intrinsics = np.loadtxt(f'{project_path}/calibration/phone_calibration/intrinsics.txt')
+    #distortion = np.loadtxt(f'{project_path}/calibration/phone_calibration/distortion.txt')
 
     record_video_and_poses(save_folder,
                            intrinsics,
                            distortion,
 
-                           cap_port=0,
+                           cap_port= PORT,
                            board=BOARD,
 
                            record_all_frames=RECORD_ALL,
