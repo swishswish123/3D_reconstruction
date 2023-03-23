@@ -28,21 +28,14 @@ def triangulate_points_opencv(kp1_matched, kp2_matched, intrinsics,rvec_1,rvec_2
 
 
 
-def get_xyz_method_prince(intrinsics, kp1_matched, im1_poses, kp2_matched, im2_poses, image_1=None):
+def get_xyz_method_prince(intrinsics, kp1_matched, im1_poses, kp2_matched, im2_poses):
 
 
     D3_points = []
-    D3_colors = []
-    # point in first image
-    #pnt1 = np.append(kp1_matched[0],1)
-    # pre-multiplying by inverse of camera intrinsics
-    #normalised_pnt1 = np.linalg.inv(intrinsics)@pnt1
 
     # we can use the third row of the equation to get the value of the scaling factor
-    '''
-    fig = plt.figure()
-    ax = fig.add_subplot(projection='3d')
-    '''
+
+    color_mask = []
 
     for idx in range(0,len(kp1_matched)):
         # first calculate X' and Y'
@@ -94,22 +87,11 @@ def get_xyz_method_prince(intrinsics, kp1_matched, im1_poses, kp2_matched, im2_p
             X = np.linalg.solve(A[:3,:], b[:3,:])
             D3_points.append(np.ndarray.tolist(X.T[0]))
 
-        #if image_1:
-        # solving equations
-        color = list(image_1[int(x1[1]),int(x1[0]),:]) # always selecting color of first image
-        D3_colors.append(color)
-            
-    # open3D
-    # 
-    '''
-    ax.set_xlabel('X Label')
-    ax.set_ylabel('Y Label')
-    ax.set_zlabel('Z Label')
+        # obtaining colour
+        #color = list(image_1[int(x1[1]),int(x1[0]),:]) # always selecting color of first image
+        color_mask.append(idx)
 
-    plt.savefig('3D_reconstruction.png')   
-    '''
-
-    return D3_points, D3_colors 
+    return D3_points, np.array(color_mask )
 
 
 def stereo_rectify_method(image_1, image_2, im1_poses, im2_poses,intrinsics, distortion, imageSize):

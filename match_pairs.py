@@ -78,16 +78,18 @@ class DictX(dict):
 
 
 
-def load_data(type, folder, frame_rate=1):
-    dist_correction = False
+def load_data(data_path, frame_rate=1):
     ########################## LOADING ALL ###################################
     project_path = Path(__file__).parent.resolve()
+    type = data_path.split('/')[-2] # folder above images
+    folder = data_path.split('/')[-1] # 2 folders above images
+
     # where image frames are
-    input_dir = f'{project_path}/assets/{type}/{folder}/images'
+    input_dir = f'{data_path}/images'
     # file specifying which image pairs to find matches for
     pairs_info = f'{project_path}/assets/pairs_info/{type}_{folder}_fr_{frame_rate}_pairs.txt'
     # where matched pairs output are put into
-    output_dir = f'{project_path}/outputs/match_pairs_{type}_{folder}/'
+    output_dir = f'{project_path}/assets/superglue_matches/match_pairs_{type}_{folder}/'
     
     # path of image sequence
     frames_paths = sorted(glob.glob(f'{input_dir}/*.*'))
@@ -126,7 +128,7 @@ def load_data(type, folder, frame_rate=1):
         f.close()
     
     ##################### distortion correction
-
+    '''
     if dist_correction:
         intrinsics = intrinsics = np.loadtxt(f'{project_path}/calibration/endoscope_calibration/intrinsics.txt')
         distortion = np.loadtxt(f'{project_path}/calibration/endoscope_calibration/distortion.txt')
@@ -158,7 +160,8 @@ def load_data(type, folder, frame_rate=1):
             #cv2.imshow('',numpy_vertical)
             cv2.imwrite(f'{input_dir}/undistorted/{pth}.png', img_undistorted)
         
-    
+    '''
+
     opt = {
         'input_pairs':Path(pairs_info),# 'Path to the list of image pairs'
         'input_dir':Path(input_dir),# Path to the directory that contains the images
@@ -192,9 +195,9 @@ def load_data(type, folder, frame_rate=1):
 
     return opt
 
-def superglue(type, folder, frame_rate=1):
+def superglue(data_folder, frame_rate=1):
 
-    opt = load_data(type, folder, frame_rate)
+    opt = load_data(data_folder, frame_rate)
 
     assert not (opt.opencv_display and not opt.viz), 'Must use --viz with --opencv_display'
     assert not (opt.opencv_display and not opt.fast_viz), 'Cannot use --opencv_display without --fast_viz'
