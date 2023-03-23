@@ -81,7 +81,7 @@ def estimate_camera_poses(kp1_matched, kp2_matched, K):
     # E = K.T @ F @ K
     # E = np.matmul(np.matmul(np.transpose(K), F), K)
 
-    _, R, t, _ = cv2.recoverPose(E, kp1_matched.T, kp2_matched.T, K)
+    #_, R, t, _ = cv2.recoverPose(E, kp1_matched.T, kp2_matched.T, K)
 
     U, _, Vt = np.linalg.svd(E)
     W = np.array([[0, -1, 0], [1, 0, 0], [0, 0, 1]])
@@ -187,6 +187,7 @@ def interpolate_between_lines(kp1_matched,  kp2_matched, interp_between = [[1,0]
     plt.savefig('testing.png')
     return new_kp2
 
+
 def solveAXEqualsZero(A):
     # TO DO: Write this routine - it should solve Ah = 0. You can do this using SVD. Consult your notes! 
     # Hint: SVD will be involved. 
@@ -195,6 +196,7 @@ def solveAXEqualsZero(A):
     h = V.T[:,-1]
   
     return h
+
 
 def calcBestHomography(pts1Cart, pts2Cart):
     
@@ -246,11 +248,13 @@ def calcBestHomography(pts1Cart, pts2Cart):
     
     return H
 
+
 def un_normalise(kp_norm, intrinsics):
     kp_hom = cv2.convertPointsToHomogeneous(kp_norm).squeeze()
     kp_hom= kp_hom@intrinsics
     kp_orig = cv2.convertPointsFromHomogeneous(kp_hom).squeeze()
     return kp_orig
+
 
 def normalise(kp_matched, intrinsics):
     kp_hom = cv2.convertPointsToHomogeneous(kp_matched).squeeze()
@@ -259,6 +263,7 @@ def normalise(kp_matched, intrinsics):
     
     kp_matched = cv2.convertPointsFromHomogeneous(kp_matched_hom).squeeze()
     return kp_matched
+
 
 def extrinsic_vecs_to_matrix(rvec, tvec):
     """
@@ -272,6 +277,7 @@ def extrinsic_vecs_to_matrix(rvec, tvec):
         stm.construct_rigid_transformation(rotation_matrix, tvec)
     return transformation_matrix
 
+
 def extrinsic_matrix_to_vecs(transformation_matrix):
     """
     Method to convert a [4x4] rigid body matrix to an rvec and tvec.
@@ -284,22 +290,12 @@ def extrinsic_matrix_to_vecs(transformation_matrix):
     tvec[0:3, 0] = transformation_matrix[0:3, 3]
     return rvec, tvec
 
-def get_projection_matrices(rvec_1,rvec_2, tvec_1, tvec_2, K):
 
-    #T0 = np.array(tvec_1) # Translation vector
-    #R0, _ = cv2.Rodrigues(rvec_1)
-    #RT0 = np.zeros((3,4))  # combined Rotation/Translation matrix
-    #RT0[:3,:3] = R0
-    #RT0[:3, 3] = T0
+def get_projection_matrices(rvec_1,rvec_2, tvec_1, tvec_2, K):
 
     RT0 = extrinsic_vecs_to_matrix(rvec_1, tvec_1)
     P0 = K @ RT0[:3]  # Projection matrix
 
-    #T1 = np.array(tvec_2)
-    #R1, _ = cv2.Rodrigues(np.array(rvec_2))
-    #RT1 = np.zeros((3,4))
-    #RT1[:3,:3] = R1
-    #RT1[:3, 3] = -T1
     RT1 = extrinsic_vecs_to_matrix(rvec_2, tvec_2)
     P1 = K @ RT1[:3]
     return P0, P1

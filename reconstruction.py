@@ -17,6 +17,20 @@ from reconstruction_utils.utils import get_matched_keypoints_superglue, get_matc
 
 
 def reconstruct_pairs(reconstruction_method, kp1_matched, kp2_matched, intrinsics, T1_to_T2):
+    """
+    Function to obtain 3D triangulated points from an image pair
+
+    Args:
+        reconstruction_method: method used for reconstruction- opencv, prince, estimate_pose
+        kp1_matched:
+        kp2_matched:
+        intrinsics:
+        T1_to_T2:
+
+    Returns:
+
+    """
+
     # rotation and translation vec of first frame will be set to zero, R and t of second
     # camera position will be set to whatever the transform between the two cameras is
     # - calculated below (T_1_to_T_2)
@@ -31,25 +45,21 @@ def reconstruct_pairs(reconstruction_method, kp1_matched, kp2_matched, intrinsic
         # rotation and translation vectors between two frames in euler angles
         rvec_2, tvec_2 = extrinsic_matrix_to_vecs(T1_to_T2)
         D3_points = triangulate_points_opencv(kp1_matched, kp2_matched, intrinsics, rvec_1, rvec_2, tvec_1,
-                                              tvec_2)  # (3xN)
-
-        # saving 3D points and colours to array of all pointcloud
-        D3_points = np.ndarray.tolist(D3_points)  # (NX3)
-        #D3_colors_all += np.ndarray.tolist(D3_colors)  # (NX3)
+                                              tvec_2)
+        D3_points = np.ndarray.tolist(D3_points)
 
     elif reconstruction_method == 'prince':
         '''
         triangulating with prince method 
         '''
         D3_points, colour_mask = get_xyz_method_prince(intrinsics, kp1_matched, T0, kp2_matched, T1_to_T2)
-        #D3_colors_filtered = D3_colors[colour_mask]
 
     elif reconstruction_method == 'online':
 
         D3_points = get_xyz(kp1_matched, intrinsics, T0[:3, :3], T0[:3, 3:], kp2_matched, intrinsics,
                             T1_to_T2[:3, :3], T1_to_T2[:3, 3:])
 
-    elif reconstruction_method == 'method_3':
+    elif reconstruction_method == 'estimate_pose':
         '''
         with camera pose estimation
         '''
@@ -73,6 +83,10 @@ def reconstruct_pairs(reconstruction_method, kp1_matched, kp2_matched, intrinsic
 
 
 def get_image_poses(tracking_method, idx=None, frame_rate=None, poses=None, hand_eye=None,rvecs=None, tvecs=None, kp1_matched=None, kp2_matched=None, intrinsics=None):
+    """
+    Function to obtain pose matrix from image 1 to image 2
+    returns T1_to_T2 matrix
+    """
 
     if tracking_method == 'EM':
         # selecting poses information of current img pairs
@@ -94,11 +108,17 @@ def get_image_poses(tracking_method, idx=None, frame_rate=None, poses=None, hand
         # relative transform between two camera poses
         T1_to_T2 = im2_mat @ np.linalg.inv(im1_mat)  # (4x4)
     else:
+        rvec_1 = np.zeros(3)
+        tvec_1 = np.zeros(3)
+
         # estimating camera poses
-        R, t = estimate_camera_poses(kp1_matched, kp2_matched, intrinsics)
-        im1_poses = extrinsic_vecs_to_matrix([0, 0, 0], [0, 0, 0])
-        im2_poses = np.hstack([R, t])
-        im2_poses = np.vstack([im2_poses, np.array([0, 0, 0, 1])])
+        R2, tvec_2 = estimate_camera_poses(kp1_matched, kp2_matched, intrinsics)
+        rvec_2,_ = cv2.Rodrigues(R2)
+
+        im1_poses = extrinsic_vecs_to_matrix(rvec_1, tvec_1)
+        im2_poses = extrinsic_vecs_to_matrix(rvec_2, tvec_2)
+        #im2_poses = np.hstack([R, t.reshape(3,1)])
+        #im2_poses = np.vstack([im2_poses, np.array([0, 0, 0, 1])])
         T1_to_T2 = im2_poses @ np.linalg.inv(im1_poses)  # (4x4)
 
     return T1_to_T2
@@ -157,8 +177,8 @@ def sparse_reconstruction_from_video(data_path,calibration_path,save_path,
         rvecs = np.load(f'{data_path}/rvecs.npy')
         tvecs = np.load(f'{data_path}/tvecs.npy')
 
-    if len(rvecs) == 0 or len(tvecs) == 0:
-        ValueError('rvecs or tvecs empty- no tracking data')
+        if len(rvecs) == 0 or len(tvecs) == 0:
+            ValueError('rvecs or tvecs empty- no tracking data')
 
     # creating path where to save reconstructions
     reconstruction_output = f'{save_path}'
@@ -294,7 +314,7 @@ def main():
     # determines space between images we pick
     frame_rate = 1
     # tracking type we're using
-    TRACKING = 'aruCo'  # EM / aruCo / False
+    TRACKING = 'False'  # EM / aruCo / False
 
     # change to the correct folder where intrinsics and distortion located
     calibration_path = f'{project_path}/calibration/mac_calibration/'
