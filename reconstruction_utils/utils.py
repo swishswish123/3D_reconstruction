@@ -75,11 +75,12 @@ def estimate_camera_poses(kp1_matched, kp2_matched, K):
     # Estimate the essential matrix using the normalized points
     E, _ = cv2.findEssentialMat(kp1_norm, kp2_norm, K)
 
-    # E = np.transpose(K) @ F[:3] @ K
-    # E = np.matmul(np.matmul(K.T, F), K)
+    F, _ = cv2.findFundamentalMat(kp1_matched.T, kp2_matched.T, cv2.FM_RANSAC)
+    E = np.transpose(K) @ F[:3] @ K
+    E = np.matmul(np.matmul(K.T, F), K)
 
-    # E = K.T @ F @ K
-    # E = np.matmul(np.matmul(np.transpose(K), F), K)
+    E = K.T @ F @ K
+    #E = np.matmul(np.matmul(np.transpose(K), F), K)
 
     #_, R, t, _ = cv2.recoverPose(E, kp1_matched.T, kp2_matched.T, K)
 
@@ -92,7 +93,7 @@ def estimate_camera_poses(kp1_matched, kp2_matched, K):
     if np.linalg.det(R) < 0:
         R = -R
         t = -t
-
+    _, R, t, _ = cv2.recoverPose(E, kp1_matched.T, kp2_matched.T, K)
     return R, t
 
 
