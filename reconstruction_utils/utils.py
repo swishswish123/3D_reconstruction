@@ -59,6 +59,11 @@ def recover_pose(kp1, kp2, K):
 
     return R, t
 
+def multiply_points_by_transform(D3_points, T):
+    D3_hom = cv2.convertPointsToHomogeneous(D3_points).squeeze()
+    D3_transformed_points_hom =   T @ D3_hom.T
+    D3_transformed = cv2.convertPointsFromHomogeneous( D3_transformed_points_hom.T ).squeeze()
+    return D3_transformed
 
 def estimate_camera_poses(kp1_matched, kp2_matched, K):
     # F, _ = cv2.findFundamentalMat(kp1_matched, kp2_matched, cv2.FM_RANSAC)

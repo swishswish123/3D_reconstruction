@@ -13,7 +13,7 @@ import match_pairs
 
 from reconstruction_utils.reconstruction_algorithms import triangulate_points_opencv, stereo_rectify_method, method_3, get_xyz, get_xyz_method_prince
 
-from reconstruction_utils.utils import get_matched_keypoints_superglue, get_matched_keypoints_sift, extrinsic_matrix_to_vecs, extrinsic_vecs_to_matrix, estimate_camera_poses, select_matches
+from reconstruction_utils.utils import get_matched_keypoints_superglue, get_matched_keypoints_sift, extrinsic_matrix_to_vecs, extrinsic_vecs_to_matrix, estimate_camera_poses, select_matches, multiply_points_by_transform
 
 
 def reconstruct_pairs(reconstruction_method, kp1_matched, kp2_matched, intrinsics, T1_to_T2):
@@ -48,7 +48,6 @@ def reconstruct_pairs(reconstruction_method, kp1_matched, kp2_matched, intrinsic
         # rotation and translation vectors between two frames in euler angles
         rvec_2, tvec_2 = extrinsic_matrix_to_vecs(T1_to_T2)
         D3_points = triangulate_points_opencv(kp1_matched, kp2_matched, intrinsics, rvec_1, rvec_2, tvec_1, tvec_2)
-        D3_points = np.ndarray.tolist(D3_points)
 
     elif reconstruction_method == 'prince':
         '''
@@ -104,8 +103,51 @@ def get_image_poses(tracking_method, idx=None, frame_rate=None, poses=None, hand
     elif tracking_method == 'aruCo':
         # selecting poses of aruco of current frame pair and converting to 4x4 matrix
         ################## 3)))))))))))))))))))
-        # im1_mat = extrinsic_vecs_to_matrix(rvecs[idx], tvecs[idx]) #(4x4)
+        #im1_mat = extrinsic_vecs_to_matrix(rvecs[idx], tvecs[idx]) #(4x4)
         im1_mat = extrinsic_vecs_to_matrix(rvecs[0], tvecs[0])  # (4x4)
+        im2_mat = extrinsic_vecs_to_matrix(rvecs[idx + frame_rate], tvecs[idx + frame_rate])  # (4x4)
+        # relative transform between two camera poses
+        T1_to_T2 = im2_mat @ np.linalg.inv(im1_mat)  # (4x4)
+    else:
+        rvec_1 = np.zeros(3)
+        tvec_1 = np.zeros(3)
+
+        # estimating camera poses and converting rotation to vector
+        R2, tvec_2 = estimate_camera_poses(kp1_matched, kp2_matched, intrinsics)
+        rvec_2,_ = cv2.Rodrigues(R2)
+        # getting 4x4 camera poses
+        im1_poses = extrinsic_vecs_to_matrix(rvec_1, tvec_1)
+        im2_poses = extrinsic_vecs_to_matrix(rvec_2, tvec_2)
+        #TODO change this to correct transform back to original poses
+        T1_to_T2 = im2_poses @ np.linalg.inv(im1_poses)  # (4x4)
+
+    return T1_to_T2
+
+
+
+def get_image_poses_current(tracking_method ,idx=None, frame_rate=None, poses=None, hand_eye=None,rvecs=None, tvecs=None, kp1_matched=None, kp2_matched=None, intrinsics=None):
+    """
+    Function to obtain pose matrix from image 1 to image 2
+    returns T1_to_T2 matrix
+    """
+
+    #rvecs_1, tvecs_1 = extrinsic_matrix_to_vecs(T1_to_N)
+    if tracking_method == 'EM':
+        # selecting poses information of current img pairs
+        ################## 2))))))))))))))
+        im1_poses = poses[idx]
+        #im1_poses = poses[0]
+        im2_poses = poses[idx + frame_rate]
+        # getting relative transform between two camera poses
+        # relative position between the two is going from the first image to the origin,
+        # then from origin to the second image
+        T1_to_T2 = hand_eye @ np.linalg.inv(im2_poses) @ im1_poses @ np.linalg.inv(hand_eye)
+
+    elif tracking_method == 'aruCo':
+        # selecting poses of aruco of current frame pair and converting to 4x4 matrix
+        ################## 3)))))))))))))))))))
+        im1_mat = extrinsic_vecs_to_matrix(rvecs[idx], tvecs[idx]) #(4x4)
+        #im1_mat = extrinsic_vecs_to_matrix(rvecs_1, tvecs_1)  # (4x4)
         im2_mat = extrinsic_vecs_to_matrix(rvecs[idx + frame_rate], tvecs[idx + frame_rate])  # (4x4)
         # relative transform between two camera poses
         T1_to_T2 = im2_mat @ np.linalg.inv(im1_mat)  # (4x4)
@@ -203,6 +245,8 @@ def sparse_reconstruction_from_video(data_path,calibration_path,save_path,
     D3_points_all = []
     D3_colors_all = []
 
+    # this will be the 4x4 matrix to go from original position to current frame
+    TN_to_T1 = np.eye(4)
     for idx in np.arange(0, len(frames_pth) - 1, frame_rate):
         # for idx in [0]:
         if idx % 10 == 0:
@@ -210,8 +254,8 @@ def sparse_reconstruction_from_video(data_path,calibration_path,save_path,
 
         # frames path of two matched pairs
         ##################### 1)))))))))))))))))
-        # im1_path = frames_pth[idx]
-        im1_path = frames_pth[0]
+        im1_path = frames_pth[idx]
+        #im1_path = frames_pth[0]
         im2_path = frames_pth[idx + frame_rate]
 
         # image numbers (eg. 00000001)- excluding extension
@@ -256,19 +300,25 @@ def sparse_reconstruction_from_video(data_path,calibration_path,save_path,
         D3_colors = img1_original[
             input_undistorted_points[:, 1], input_undistorted_points[:, 0]]  # (Nx3)- where N is same as kp_matched N
 
-        ############################ IMAGE POSES ################################
-        if tracking_method == 'EM':
-            T1_to_T2 = get_image_poses(tracking_method, idx=idx, frame_rate=frame_rate, poses=poses, hand_eye=hand_eye)
-        elif tracking_method =='aruCo':
-            T1_to_T2 = get_image_poses(tracking_method, idx=idx, frame_rate=frame_rate, rvecs=rvecs, tvecs=tvecs, kp1_matched=None, kp2_matched=None, intrinsics=None)
-        else: # estimate_pose
-            T1_to_T2 = get_image_poses(tracking_method,  kp1_matched=kp1_matched, kp2_matched=kp2_matched, intrinsics=intrinsics)
+        if not idx == 0:
+            TN_to_T1 =  TN_to_TN_plus_1 @ TN_to_T1
 
-        ######################### TRIANGULATION- GETTING 3D POINTS ##################################
-        D3_points, color_mask = reconstruct_pairs(reconstruction_method, kp1_matched, kp2_matched, intrinsics, T1_to_T2)
+        # ########################### IMAGE POSES ################################
+        # obtaining image posees between current frame (N) and the next (N+1)
+        if tracking_method == 'EM':
+            TN_to_TN_plus_1 = get_image_poses_current(tracking_method, idx=idx, frame_rate=frame_rate, poses=poses, hand_eye=hand_eye)
+        elif tracking_method =='aruCo':
+            TN_to_TN_plus_1 = get_image_poses_current(tracking_method, idx=idx, frame_rate=frame_rate, rvecs=rvecs, tvecs=tvecs, kp1_matched=None, kp2_matched=None, intrinsics=None)
+        else: # estimate_pose
+            TN_to_TN_plus_1 = get_image_poses_current(tracking_method,  kp1_matched=kp1_matched, kp2_matched=kp2_matched, intrinsics=intrinsics)
+
+        # ######################## TRIANGULATION- GETTING 3D POINTS ##################################
+        D3_points, color_mask = reconstruct_pairs(reconstruction_method, kp1_matched, kp2_matched, intrinsics, TN_to_TN_plus_1)
 
         # TODO- ADD CHECK IF THERE'S NO 3D POINTS
-        D3_points_all += D3_points
+        D3_points = multiply_points_by_transform(D3_points, np.linalg.inv(TN_to_T1))
+        D3_points_all += np.ndarray.tolist(D3_points)
+
         if color_mask:
             D3_colors_all += np.ndarray.tolist(D3_colors[color_mask])
         else:
@@ -315,7 +365,7 @@ def main():
     # determines space between images we pick
     frame_rate = 1
     # tracking type we're using
-    TRACKING = 'False'  # EM / aruCo / False
+    TRACKING = None  # EM / aruCo / False
 
     # change to the correct folder where intrinsics and distortion located
     calibration_path = f'{project_path}/calibration/mac_calibration/'

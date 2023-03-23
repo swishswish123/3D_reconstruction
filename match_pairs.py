@@ -113,8 +113,8 @@ def load_data(data_path, frame_rate=1):
         f = open(pairs_info,"w+")
         for idx in np.arange(0,len(frames_paths)-1, frame_rate):
             # path of img 1
-            #pth_1 = frames_paths[idx].split('/')[-1]
-            pth_1 = frames_paths[0].split('/')[-1]
+            pth_1 = frames_paths[idx].split('/')[-1]
+            #pth_1 = frames_paths[0].split('/')[-1]
             # path of img 2
             pth_2 = frames_paths[idx+frame_rate].split('/')[-1]
 
