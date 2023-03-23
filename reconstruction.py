@@ -21,14 +21,17 @@ def reconstruct_pairs(reconstruction_method, kp1_matched, kp2_matched, intrinsic
     Function to obtain 3D triangulated points from an image pair
 
     Args:
-        reconstruction_method: method used for reconstruction- opencv, prince, estimate_pose
-        kp1_matched:
-        kp2_matched:
-        intrinsics:
-        T1_to_T2:
+        reconstruction_method: method used for reconstruction- opencv, prince, online estimate_pose
+        kp1_matched: keypoints in image 1 which are matched to image 2
+        kp2_matched: keypoints in image 2 which are matched to image 1
+        intrinsics (3x3): numpy array containing intrinsics matrix of camera
+        T1_to_T2 (4x4): transform matrix between two image pairs camera poses
 
     Returns:
-
+        D3_points (#TODO CHECK DIMS):
+        colour_mask (): array of all the indeces that were correctly triangulated. This
+        will be used to filter out the colour points whose points weren't used
+        #TODO check this is working
     """
 
     # rotation and translation vec of first frame will be set to zero, R and t of second
@@ -44,8 +47,7 @@ def reconstruct_pairs(reconstruction_method, kp1_matched, kp2_matched, intrinsic
         '''
         # rotation and translation vectors between two frames in euler angles
         rvec_2, tvec_2 = extrinsic_matrix_to_vecs(T1_to_T2)
-        D3_points = triangulate_points_opencv(kp1_matched, kp2_matched, intrinsics, rvec_1, rvec_2, tvec_1,
-                                              tvec_2)
+        D3_points = triangulate_points_opencv(kp1_matched, kp2_matched, intrinsics, rvec_1, rvec_2, tvec_1, tvec_2)
         D3_points = np.ndarray.tolist(D3_points)
 
     elif reconstruction_method == 'prince':
@@ -111,14 +113,13 @@ def get_image_poses(tracking_method, idx=None, frame_rate=None, poses=None, hand
         rvec_1 = np.zeros(3)
         tvec_1 = np.zeros(3)
 
-        # estimating camera poses
+        # estimating camera poses and converting rotation to vector
         R2, tvec_2 = estimate_camera_poses(kp1_matched, kp2_matched, intrinsics)
         rvec_2,_ = cv2.Rodrigues(R2)
-
+        # getting 4x4 camera poses
         im1_poses = extrinsic_vecs_to_matrix(rvec_1, tvec_1)
         im2_poses = extrinsic_vecs_to_matrix(rvec_2, tvec_2)
-        #im2_poses = np.hstack([R, t.reshape(3,1)])
-        #im2_poses = np.vstack([im2_poses, np.array([0, 0, 0, 1])])
+        #TODO change this to correct transform back to original poses
         T1_to_T2 = im2_poses @ np.linalg.inv(im1_poses)  # (4x4)
 
     return T1_to_T2
