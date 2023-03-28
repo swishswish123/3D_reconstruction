@@ -4,6 +4,8 @@ This code can perform a 3D monocular sparse reconstruction from video frames (or
 It also provides code for calibrating your camera, and for recording images with their corresponding camera positions using aruCo markers.
 
 ## 1. Create conda environment
+python version 3.11
+
 ```
 conda create --name reconstruction
 conda activate reconstruction
