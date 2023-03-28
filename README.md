@@ -155,3 +155,8 @@ Run setup file for importing modules
 `pip install -e .`
 
 then run pytest inside the tests folder
+
+```
+cd tests
+pytest
+```
