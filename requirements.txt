@@ -3,5 +3,6 @@ matplotlib
 torch
 scikit-surgerycore
 pandas
+scipy
 plotly
 pytest
