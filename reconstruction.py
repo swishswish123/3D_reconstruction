@@ -5,136 +5,16 @@ import os
 import glob
 from pathlib import Path
 import cv2
-import numpy as np
 import matplotlib as mpl
-from scipy.optimize import least_squares
 import match_pairs
+import numpy as np
 
-from scipy.sparse import lil_matrix
 
-from reconstruction_utils.reconstruction_algorithms import triangulate_points_opencv, stereo_rectify_method, method_3, get_xyz, get_xyz_method_prince
+from reconstruction_utils.reconstruction_algorithms import triangulate_points_opencv, get_xyz, get_xyz_method_prince
 
 from reconstruction_utils.utils import get_matched_keypoints_superglue, get_matched_keypoints_sift, extrinsic_matrix_to_vecs, extrinsic_vecs_to_matrix, estimate_camera_poses, manually_match_features, multiply_points_by_transform
 
-import numpy as np
-from scipy.optimize import least_squares
-
-from functools import partial
-from scipy.optimize import least_squares
-import time
-
-'''
-    def fun(params, n_cameras, n_points, camera_indices, point_indices, points_2d):
-        """Residual function for least-squares optimization.
-
-        Args:
-        - params: 1D numpy array of concatenated camera poses and 3D points
-        - n_cameras: number of cameras/poses
-        - n_points: number of 3D points
-        - camera_indices: list of camera indices for each observation
-        - point_indices: list of point indices for each observation
-        - points_2d: list of observed 2D points
-
-        Returns:
-        - Residuals between observed and projected 2D points
-        """
-        camera_params = params[:n_cameras * 9].reshape((n_cameras, 9))
-        points_3d = params[n_cameras * 9:].reshape((n_points, 3))
-        points_proj = project(points_3d[point_indices], camera_params[camera_indices])
-        return (points_proj - points_2d).ravel()
-    
-'''
-
-
-def rotate(points, rot_vecs):
-    """Rotate points by given rotation vectors.
-
-    Rodrigues' rotation formula is used.
-    """
-    theta = np.linalg.norm(rot_vecs, axis=1)[:, np.newaxis]
-    with np.errstate(invalid='ignore'):
-        v = rot_vecs / theta
-        v = np.nan_to_num(v)
-    dot = np.sum(points * v, axis=1)[:, np.newaxis]
-    cos_theta = np.cos(theta)
-    sin_theta = np.sin(theta)
-
-    return cos_theta * points + sin_theta * np.cross(v, points) + dot * (1 - cos_theta) * v
-
-
-def project(points, camera_params):
-    """Convert 3-D points to 2-D by projecting onto images."""
-    points_proj = rotate(points, camera_params[:, :3])
-    points_proj += camera_params[:, 3:6]
-    points_proj = -points_proj[:, :2] / points_proj[:, 2, np.newaxis]
-    f = camera_params[:, 6]
-    k1 = camera_params[:, 7]
-    k2 = camera_params[:, 8]
-    n = np.sum(points_proj**2, axis=1)
-    r = 1 + k1 * n + k2 * n**2
-    points_proj *= (r * f)[:, np.newaxis]
-    return points_proj
-
-
-def fun(params, n_cameras, n_points, camera_indeces, point_indeces, points_2d):
-    """Compute residuals.
-
-    `params` contains camera parameters and 3-D coordinates.
-    n_cameras: number of cameras or views (in my case num of frames)
-    n_points: number of 3d points
-    camera_indices: index of which camera was used to triangulate point-  Each element of camera_indices is an integer representing the index of the camera that generated the corresponding 2D point.
-    point_indeces: : Each element of point_indices is an integer representing the index of the 3D point that generated the corresponding 2D point.
-
-    """
-    # going back to same shape as before camera params:
-    # [rx,ry,rz,,tx,ty,tz,focal_distance, dist1, dist2]
-    camera_params = params[:n_cameras * 9].reshape((n_cameras, 9))
-    # recovering 3d poinys to same as before
-    points_3d = params[n_cameras * 9:].reshape((n_points, 3))
-    points_proj = project(points_3d[point_indeces], camera_params[camera_indeces])
-    return (points_proj - points_2d).ravel()
-
-
-def bundle_adjustment_sparsity(n_cameras, n_points, camera_indeces, point_indeces):
-    m = camera_indeces.size * 2
-    n = n_cameras * 9 + n_points * 3
-    A = lil_matrix((m, n), dtype=int)
-
-    i = np.arange(camera_indeces.size)
-    for s in range(9):
-        A[2 * i, camera_indeces * 9 + s] = 1
-        A[2 * i + 1, camera_indeces * 9 + s] = 1
-
-    for s in range(3):
-        A[2 * i, n_cameras * 9 + point_indeces * 3 + s] = 1
-        A[2 * i + 1, n_cameras * 9 + point_indeces * 3 + s] = 1
-
-    return A
-
-
-def bundle_adjustment(camera_params, camera_indeces, point_indeces, points_2d, points_3d):
-    n_cameras = camera_params.shape[0]  # number of cameras or views (frames in my case)
-    n_points = points_3d.shape[0]  # number of points triangulated
-
-    x0 = np.hstack((camera_params.ravel(), points_3d.ravel()))
-
-    # calculating residuals
-    f0 = fun(x0, n_cameras, n_points, camera_indeces, point_indeces, points_2d)
-
-    A = bundle_adjustment_sparsity(n_cameras, n_points, camera_indeces, point_indeces)
-    t0 = time.time()
-    res = least_squares(fun, x0, jac_sparsity=A, verbose=2, x_scale='jac', ftol=1e-4, method='trf',
-                        args=(n_cameras, n_points, camera_indeces, point_indeces, points_2d))
-    t1 = time.time()
-
-    print("Optimization took {0:.0f} seconds".format(t1 - t0))
-
-    # obtaining new 3d points and poses after correction
-    poses = res.x[:n_cameras * 9].reshape((n_cameras, 9))
-    # recovering 3d poinys to same as before
-    points_3d = res.x[n_cameras * 9:].reshape((n_points, 3))
-
-    return poses, points_3d
+from reconstruction_utils.bundle_adjustment import perform_bundle_adjustment
 
 
 def reconstruct_pairs(reconstruction_method, kp1_matched, kp2_matched, intrinsics, T1_to_T2):
@@ -181,36 +61,49 @@ def reconstruct_pairs(reconstruction_method, kp1_matched, kp2_matched, intrinsic
         D3_points = get_xyz(kp1_matched, intrinsics, T0[:3, :3], T0[:3, 3:], kp2_matched, intrinsics,
                             T1_to_T2[:3, :3], T1_to_T2[:3, 3:])
 
-    elif reconstruction_method == 'estimate_pose':
-        '''
-        with camera pose estimation
-        '''
-        D3_points = method_3(kp1_matched, kp2_matched, intrinsics)
-        if isinstance(D3_points, np.ndarray):
-            if len(D3_points.shape) > 2:
-                D3_points = np.ndarray.tolist(D3_points.squeeze())
-            else:
-                D3_points = np.ndarray.tolist(D3_points)
-        else:
-            print('no F matrix found')
-
-    #elif reconstruction_method == 'stereo':
-        '''
-        stereo rectification method- align images
-        '''
-    #    frame_1, frame_2 = stereo_rectify_method(img1_original, img2_original, im1_poses, im2_poses, intrinsics,
-    #                                             distortion, imageSize)
-
     return D3_points, colour_mask
 
 
 def get_image_poses(tracking_method ,idx=None, frame_rate=None, poses=None, hand_eye=None,rvecs=None, tvecs=None, kp1_matched=None, kp2_matched=None, intrinsics=None):
     """
-    Function to obtain pose matrix from image 1 to image 2
-    returns T1_to_T2 matrix
+    Computes the relative transformation matrix between two camera poses using different tracking methods.
+
+    Parameters:
+    -----------
+    tracking_method : str
+        The method used for tracking the camera poses. It can be 'EM' for extrinsic matrix,
+         'aruCo' for ArUco markers, or any other value for feature-based tracking
+         (pose estimation).
+    idx : int or None, optional
+        The index of the first image pose in the poses array. This is only required for
+        EM and ArUco methods, where the poses array contains multiple poses.
+    frame_rate : int or None, optional
+        The number of frames between the two camera poses. This is only required for EM and ArUco methods.
+    poses : numpy.ndarray or None, optional
+        An array containing the camera poses. This is only required for EM and ArUco methods.
+    hand_eye : numpy.ndarray or None, optional
+        A 4x4 homogeneous transformation matrix representing the hand-eye calibration. This is only required for EM method.
+    rvecs : numpy.ndarray or None, optional
+        A 3x1 array containing the rotation vector of the camera pose. This is only required for ArUco method.
+    tvecs : numpy.ndarray or None, optional
+        A 3x1 array containing the translation vector of the camera pose. This is only required for ArUco method.
+    kp1_matched : numpy.ndarray or None, optional
+        An array containing the keypoints in the first image. This is only required for feature-based tracking.
+    kp2_matched : numpy.ndarray or None, optional
+        An array containing the keypoints in the second image. This is only required for feature-based tracking.
+    intrinsics : numpy.ndarray or None, optional
+        A 3x3 array containing the camera intrinsic matrix. This is only required for feature-based tracking.
+
+    Returns:
+    --------
+    T1_to_T2 : numpy.ndarray
+        A 4x4 homogeneous transformation matrix representing the relative transformation between the two camera poses.
+    rvec_2 : numpy.ndarray or None
+        A 3x1 array containing the rotation vector of the second camera pose. This is only returned when the tracking method is feature-based.
+    tvec_2 : numpy.ndarray or None
+        A 3x1 array containing the translation vector of the second camera pose. This is only returned when the tracking method is feature-based.
     """
 
-    #rvecs_1, tvecs_1 = extrinsic_matrix_to_vecs(T1_to_N)
     if tracking_method == 'EM':
         # selecting poses information of current img pairs
         ################## 2))))))))))))))
@@ -243,6 +136,7 @@ def get_image_poses(tracking_method ,idx=None, frame_rate=None, poses=None, hand
         #TODO change this to correct transform back to original poses
         T1_to_T2 = im2_poses @ np.linalg.inv(im1_poses)  # (4x4)
         return T1_to_T2, rvec_2, tvec_2
+
     return T1_to_T2
 
 
@@ -250,7 +144,9 @@ def sparse_reconstruction_from_video(data_path,calibration_path,save_path,
                                      frame_rate=1,
                                      tracking_method='aruCo',
                                      matching_method='superglue',
-                                     reconstruction_method='opencv'
+                                     reconstruction_method='opencv',
+                                     bundle_adjust=False
+
                                      ):
     """ Function performs 3D sparse reconstruction from set of images with overlapping bits
 
@@ -268,7 +164,7 @@ def sparse_reconstruction_from_video(data_path,calibration_path,save_path,
                                 will bring up a subplot where you will be able to select points that are matching between the
                                 images.
         reconstruction_method (str): method to be used for reconstruction- opencv is the opencv.triangulate() and will be used as a default.
-
+        bundle_adjust (bool): whether or not to perform bundle adjustment
     Returns:
         this function will save two point clouds to the save folder specified:
         - points.npy (NX3): points numpy array- 3 dimensions representing X,Y,Z
@@ -307,7 +203,7 @@ def sparse_reconstruction_from_video(data_path,calibration_path,save_path,
     if not os.path.isdir(reconstruction_output):
         os.makedirs(reconstruction_output)
 
-    ######################## PERFORMING SUPERGLUE MATCHING ########################################
+    # ####################### PERFORMING SUPERGLUE MATCHING ########################################
     # if superglue is selected, superglue matching is performed before running and output is saved under outputs
     if matching_method == 'superglue':
         # performing superglue matching
@@ -317,14 +213,14 @@ def sparse_reconstruction_from_video(data_path,calibration_path,save_path,
         # path where all match pairs located (SUPERGLUE)
         output_dir = f'{project_path}/assets/superglue_matches/match_pairs_{type}_{folder}'
         # matches
-        #match_paths = glob.glob(f'{output_dir}/*.npz')
+        # match_paths = glob.glob(f'{output_dir}/*.npz')
 
-    ###################### PERFORM 3D RECONSTRUCTION FOR EACH FRAME######################
+    # ##################### PERFORM 3D RECONSTRUCTION FOR EACH FRAME######################
 
     D3_points_all = []
     D3_colors_all = []
 
-    # for bundle adjustment
+    # params for bundle adjustment
     # rotation vector (3 elements)
     # translation vector (3 elements)
     # focal length (1 element)
@@ -340,7 +236,7 @@ def sparse_reconstruction_from_video(data_path,calibration_path,save_path,
     # this will be the 4x4 matrix to go from original position to current frame
     TN_to_T1 = np.eye(4)
     for idx in np.arange(0, len(frames_pth) - 1, frame_rate):
-        # for idx in [0]:
+    #for idx in [0]:
         if idx == 0:
             camera_params.append([0,0,0,0,0,0,intrinsics[0,0], distortion[0], distortion[1]])
 
@@ -395,7 +291,6 @@ def sparse_reconstruction_from_video(data_path,calibration_path,save_path,
         # camera used to obtain all these points is current idx
         num_keypoints = kp1_matched.shape[1]
         camera_indeces += np.ndarray.tolist( idx * np.ones(num_keypoints) )
-
 
         # adding keypoints to list of kpts
         points2d += np.ndarray.tolist(kp2_matched.T)
@@ -460,14 +355,6 @@ def sparse_reconstruction_from_video(data_path,calibration_path,save_path,
             break
 
     # convert points to array for all point cloud
-    '''
-    
-    points2d = np.asarray(points2d, dtype='float64')
-    poses_all = np.asarray(poses_all, dtype='float64')
-    kp1_all = np.asarray(kp1_all, dtype='float64')
-    kp2_all = np.asarray(kp2_all, dtype='float64')
-    '''
-
     point_indeces = np.asarray(point_indeces, dtype='int')
     camera_indeces = np.asarray(camera_indeces, dtype='int')
     points2d = np.asarray(points2d, dtype='float64')
@@ -476,20 +363,18 @@ def sparse_reconstruction_from_video(data_path,calibration_path,save_path,
     all_colors = np.asarray(D3_colors_all, dtype='float')
     camera_params = np.asarray(camera_params, dtype='float64')
 
-
-    #poses_optimized, points_3d_optimized = bundle_adjustment_1(all_points, points2d, intrinsics, distortion, poses_all)
-    poses_opt, points3D_opt = bundle_adjustment(camera_params, camera_indeces, point_indeces, points2d, all_points)
-    print(points3D_opt)
-
-
     # output saved as (NX3) points numpy array- 3 dimensions representing X,Y,Z
     np.save(f'{reconstruction_output}/points.npy', all_points)
     # output saved as (NX3) points numpy array- 3 dimensions representing R,G,B
     np.save(f'{reconstruction_output}/colors.npy', all_colors)
 
-    # improved 3d points
-    np.save(f'{reconstruction_output}/points_opt.npy', points3D_opt)
-    print('done')
+    # performing bundle adjustment
+    if bundle_adjust:
+        poses_opt, points3D_opt = perform_bundle_adjustment(camera_params, camera_indeces, point_indeces, points2d, all_points)
+        print(points3D_opt)
+        # improved 3d points
+        np.save(f'{reconstruction_output}/points_opt.npy', points3D_opt)
+        print('done')
 
 
 def main():
@@ -519,7 +404,7 @@ def main():
     # determines space between images we pick
     frame_rate = 1
     # tracking type we're using
-    TRACKING = 'aruCo'  # EM / aruCo / False
+    TRACKING = None  # EM / aruCo / False
 
     # change to the correct folder where intrinsics and distortion located
     calibration_path = f'{project_path}/calibration/mac_calibration/'
@@ -534,8 +419,8 @@ def main():
                                      frame_rate=frame_rate,
                                      tracking_method = TRACKING,
                                      matching_method=matching_method,
-                                     reconstruction_method=method)
-
+                                     reconstruction_method=method,
+                                     bundle_adjust=True)
 
 if __name__=='__main__':
     main()
