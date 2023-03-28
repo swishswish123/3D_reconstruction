@@ -8,7 +8,7 @@ from reconstruction import reconstruct_pairs
 from reconstruction_utils.utils import extrinsic_vecs_to_matrix, extrinsic_matrix_to_vecs
 from pathlib import Path
 
-from .common_tests import arrays_equal
+from tests.common_tests import arrays_equal
 
 
 def test_reconstruction(intrinsics, distortion, xyz):
