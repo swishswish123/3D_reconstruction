@@ -22,17 +22,19 @@ def test_reconstruction(intrinsics, distortion, xyz):
     #xyz = np.array([[0.0, 0.0, 200.0],
     #                             [0,0,100]])
 
-    # Project to first camera. Notice that rvec, and tvec are zero, so it's the identity matrix.
+    # Project points to first camera
     projected_points_1, _ = cv2.projectPoints(xyz,
                                               rvec=np.zeros((1, 3)), # No rotations or translations, so world coords==camera coords.
                                               tvec=np.zeros((1, 3)),
                                               cameraMatrix=intrinsics,
                                               distCoeffs=distortion)
 
-    # second camera. No rotation. Just translate in x.
+    # defining extrinsics of second camera. Just translation in x.
     extrinsics_matrix = np.eye(4, 4)
     extrinsics_matrix[0][3] = 10
     rvec_1, tvec_1 = extrinsic_matrix_to_vecs(extrinsics_matrix)
+    # RT 4x4 matrix between cam1 and cam 2
+    RT = extrinsic_vecs_to_matrix(rvec_1, tvec_1)
 
     # Project to 2nd camera.
     projected_points_2, _ = cv2.projectPoints(xyz,
@@ -50,20 +52,13 @@ def test_reconstruction(intrinsics, distortion, xyz):
     kp1_matched = kp1_matched.squeeze(1).T  # (2XN)
     kp2_matched = kp2_matched.squeeze(1).T  # (2XN)
 
-    # RT 4x4 matrix between cam1 and cam 2
-    RT = extrinsic_vecs_to_matrix(rvec_1, tvec_1)
-
     # reconstruct points
     D3_points, colour_mask = reconstruct_pairs('opencv', kp1_matched, kp2_matched, intrinsics, RT)
 
-    # Moment of truth.
+    # Check reconstructed points equals original point
     print('orig')
     print(xyz)
     print('triang')
     print(D3_points.round())
-
-    # Check reconstructed points equals original point
     arrays_equal(xyz, D3_points)
-    #assert arrays_equal
-
 
