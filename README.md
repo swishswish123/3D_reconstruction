@@ -12,7 +12,21 @@ conda activate reconstruction
 ```
 
 ## 2. Install the dependencies
+
 install requirements.txt
+opencv-contrib-python-4.7.0.72
+matplotlib==3.7.1
+torch==2.0.0
+scikit-surgerycore==0.6.10
+
+#### for visualisation
+pandas==1.5.3
+plotly==5.13.1
+
+#### for testing
+pytest
+
+##################
 
 `pip3 install -r requirements.txt`
 
