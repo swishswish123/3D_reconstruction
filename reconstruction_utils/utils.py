@@ -1,4 +1,3 @@
-
 import numpy as np
 import matplotlib.pyplot as plt
 import cv2
@@ -61,57 +60,67 @@ def manually_match_features(img1, img2):
     return matches[:, :2], matches[:, 2:]
 
 
-def recover_pose(kp1, kp2, K):
-    # TODO use or remove
-    E, mask = cv2.findEssentialMat(kp1.T, kp2.T, focal=1.0, pp=(0., 0.), method=cv2.FM_LMEDS, prob=0.999, threshold=3.0)
-
-    points, R, t, mask = cv2.recoverPose(E, kp1.T, kp2.T)
-    # R1, R2, t = cv2.decomposeEssentialMat(E)
-
-    return R, t
-
-
 def multiply_points_by_transform(D3_points, T):
+    """
+    Applies a 4x4 transformation matrix to a set of 3D points.
+
+    Args:
+        D3_points (numpy.ndarray): Array of 3D points with shape (N, 3).
+        T (numpy.ndarray): 4x4 transformation matrix.
+
+    Returns:
+        (numpy.ndarray) Array of transformed 3D points with shape (N, 3).
+    """
     D3_hom = cv2.convertPointsToHomogeneous(D3_points).squeeze()
-    D3_transformed_points_hom =   T @ D3_hom.T
-    D3_transformed = cv2.convertPointsFromHomogeneous( D3_transformed_points_hom.T ).squeeze()
+    D3_transformed_points_hom = T @ D3_hom.T
+    D3_transformed = cv2.convertPointsFromHomogeneous(D3_transformed_points_hom.T).squeeze()
     return D3_transformed
 
 
-def estimate_camera_poses(kp1_matched, kp2_matched, K):
-    # F, _ = cv2.findFundamentalMat(kp1_matched, kp2_matched, cv2.FM_RANSAC)
-    '''
-    F, _ = cv2.findFundamentalMat(kp1_matched.T, kp2_matched.T, cv2.FM_RANSAC)
-    if isinstance(F, np.ndarray):
-        pass
-    else:
-        return None
-    '''
-    kp1_norm = cv2.undistortPoints(np.expand_dims(kp1_matched, axis=2), K, None)
-    kp2_norm = cv2.undistortPoints(np.expand_dims(kp2_matched, axis=2), K, None)
+def estimate_camera_poses(kp1_matched, kp2_matched, K, recover_pose_method='opencv', essential_mat_method='opencv'):
+    """ Computes the relative pose between two images given their keypoints and camera intrinsics.
+
+    Args:
+        kp1_matched (numpy.ndarray), (2, N): Array of keypoints in the first image
+        kp2_matched (numpy.ndarray), (2, N): Array of keypoints in the second image
+        K (numpy.ndarray), (3,3): Camera intrinsic matrix.
+
+    Returns:
+        Tuple[numpy.ndarray, numpy.ndarray]
+        A tuple containing the rotation matrix and translation vector
+        that transforms points in the first camera frame to the second.
+    """
+
+    #kp1_norm = cv2.undistortPoints(np.expand_dims(kp1_matched, axis=2), K, None)
+    #kp2_norm = cv2.undistortPoints(np.expand_dims(kp2_matched, axis=2), K, None)
+    kp1_matched = kp1_matched.T
+    kp2_matched = kp2_matched.T
 
     # Estimate the essential matrix using the normalized points
-    E, _ = cv2.findEssentialMat(kp1_norm, kp2_norm, K)
+    if essential_mat_method == 'opencv':
+        # method 1: using opencv
+        E, _ = cv2.findEssentialMat(kp1_matched, kp1_matched, K)
+    else:
+        # method 2: from fundamental matrix
+        F, _ = cv2.findFundamentalMat(kp1_matched.T, kp2_matched.T, cv2.FM_RANSAC)
+        E = K.T @ F @ K
 
-    F, _ = cv2.findFundamentalMat(kp1_matched.T, kp2_matched.T, cv2.FM_RANSAC)
-    E = np.transpose(K) @ F[:3] @ K
-    E = np.matmul(np.matmul(K.T, F), K)
+    # recover pose from essential matrix
+    if recover_pose_method=='opencv':
+        # method 1) opencv
+        _, R, t, _ = cv2.recoverPose(E, kp1_matched, kp2_matched, K)
+    else:
+        # method 2) svd decomposition
+        U, _, Vt = np.linalg.svd(E)
+        W = np.array([[0, -1, 0], [1, 0, 0], [0, 0, 1]])
+        R = np.matmul(np.matmul(U, W), Vt)
+        t = U[:, 2]
 
-    E = K.T @ F @ K
-    #E = np.matmul(np.matmul(np.transpose(K), F), K)
+        # Check for the correct rotation matrix
+        if np.linalg.det(R) < 0:
+            R = -R
+            t = -t
 
-    #_, R, t, _ = cv2.recoverPose(E, kp1_matched.T, kp2_matched.T, K)
-
-    U, _, Vt = np.linalg.svd(E)
-    W = np.array([[0, -1, 0], [1, 0, 0], [0, 0, 1]])
-    R = np.matmul(np.matmul(U, W), Vt)
-    t = U[:, 2]
-
-    # Check for the correct rotation matrix
-    if np.linalg.det(R) < 0:
-        R = -R
-        t = -t
-    _, R, t, _ = cv2.recoverPose(E, kp1_matched.T, kp2_matched.T, K)
     return R, t
 
 
@@ -141,8 +150,7 @@ def extrinsic_matrix_to_vecs(transformation_matrix):
     return rvec, tvec
 
 
-def get_projection_matrices(rvec_1,rvec_2, tvec_1, tvec_2, K):
-
+def get_projection_matrices(rvec_1, rvec_2, tvec_1, tvec_2, K):
     RT0 = extrinsic_vecs_to_matrix(rvec_1, tvec_1)
     P0 = K @ RT0[:3]  # Projection matrix
 
@@ -162,21 +170,21 @@ def img_poses_reformat(im_poses):
         decomposed pose matrix to be used for prince method reconstruction
     """
     # MATRICES OF EQUATION 1
-    tx = im_poses[0,-1]
-    ty = im_poses[1,-1]
-    tz = im_poses[2,-1]
+    tx = im_poses[0, -1]
+    ty = im_poses[1, -1]
+    tz = im_poses[2, -1]
 
-    w31 = im_poses[2,0]
-    w11 = im_poses[0,0]
-    w21 = im_poses[1,0]
-    
-    w32 = im_poses[2,1]
-    w12 = im_poses[0,1]
-    w22 = im_poses[1,1]
-    
-    w33 = im_poses[2,2]
-    w13 = im_poses[0,2]
-    w23 = im_poses[1,2]
+    w31 = im_poses[2, 0]
+    w11 = im_poses[0, 0]
+    w21 = im_poses[1, 0]
+
+    w32 = im_poses[2, 1]
+    w12 = im_poses[0, 1]
+    w22 = im_poses[1, 1]
+
+    w33 = im_poses[2, 2]
+    w13 = im_poses[0, 2]
+    w23 = im_poses[1, 2]
 
     return tx, ty, tz, w31, w11, w21, w32, w12, w22, w33, w13, w23
 
@@ -190,39 +198,38 @@ def get_matched_keypoints_superglue(pair_match):
         - kp1_matched, kp2_matched: np arrays of marched points
     '''
     # MATCHES info of the two images
-    npz = np.load( pair_match )
+    npz = np.load(pair_match)
 
-    kp1 = npz['keypoints0'] # keypoints in first image
-    kp2 = npz['keypoints1'] # keypoints in second image
-    matches = npz['matches'] # matches- for each point in kp1, finds match in kp2. If -1-> no match
+    kp1 = npz['keypoints0']  # keypoints in first image
+    kp2 = npz['keypoints1']  # keypoints in second image
+    matches = npz['matches']  # matches- for each point in kp1, finds match in kp2. If -1-> no match
 
     # selecting in order the indeces of the matching points
-    kp1_matched =  kp1[matches>-1] # selecting all indeces that are matches in im1
-    kp2_matched =  kp2[matches[matches>-1]] # selecting points whose indeces are matches in sim2        
+    kp1_matched = kp1[matches > -1]  # selecting all indeces that are matches in im1
+    kp2_matched = kp2[matches[matches > -1]]  # selecting points whose indeces are matches in sim2
     return kp1_matched, kp2_matched
 
 
 def get_matched_keypoints_sift(img1_original, img2_original):
-
     # Initiate SIFT detector
     sift = cv2.SIFT_create()
-    #orb = cv2.ORB_create()
+    # orb = cv2.ORB_create()
 
     # convert 2 images to gray
     img1 = cv2.cvtColor(img1_original, cv2.COLOR_BGR2GRAY)
     img2 = cv2.cvtColor(img2_original, cv2.COLOR_BGR2GRAY)
-    
+
     # find the keypoints and descriptors with SIFT
-    kp1, des1 = sift.detectAndCompute(img1,None)
-    kp2, des2 = sift.detectAndCompute(img2,None)
+    kp1, des1 = sift.detectAndCompute(img1, None)
+    kp2, des2 = sift.detectAndCompute(img2, None)
 
     # find the keypoints and descriptors with ORB
-    #kp1, des1 = orb.detectAndCompute(img1,None)
-    #kp2, des2 = orb.detectAndCompute(img2,None)
+    # kp1, des1 = orb.detectAndCompute(img1,None)
+    # kp2, des2 = orb.detectAndCompute(img2,None)
 
-    #feature matching
+    # feature matching
     bf = cv2.BFMatcher()
-    matches = bf.knnMatch(des1,des2,k=2)
+    matches = bf.knnMatch(des1, des2, k=2)
     '''
     bf = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
     matches = bf.match(des1,des2)
@@ -232,10 +239,10 @@ def get_matched_keypoints_sift(img1_original, img2_original):
     good_kp1_matched = []
     good_kp2_matched = []
     good = []
-    
-    for m,n in matches:
-        
-        if m.distance < 0.8*n.distance:
+
+    for m, n in matches:
+
+        if m.distance < 0.8 * n.distance:
             good.append(m)
             # https://stackoverflow.com/questions/30716610/how-to-get-pixel-coordinates-from-feature-matching-in-opencv-python
             # extracting indexes of matched idx from images
@@ -251,14 +258,11 @@ def get_matched_keypoints_sift(img1_original, img2_original):
         good_kp2_matched.append(kp2[img2_idx].pt)
     '''
     # converting to np array
-    kp1_matched =  np.asarray(good_kp1_matched) # selecting all indeces that are matches in im1
-    kp2_matched =  np.asarray(good_kp2_matched) # selecting points whose indeces are matches in sim2        
-    
+    kp1_matched = np.asarray(good_kp1_matched)  # selecting all indeces that are matches in im1
+    kp2_matched = np.asarray(good_kp2_matched)  # selecting points whose indeces are matches in sim2
+
     img3 = cv2.drawMatches(img1, kp1, img2, kp2, good, img2, flags=2)
-    #img3 = cv2.drawMatches(img1,kp1,img2,kp2,matches[:50],None,flags=cv2.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS)
+    # img3 = cv2.drawMatches(img1,kp1,img2,kp2,matches[:50],None,flags=cv2.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS)
     plt.imshow(img3)
     plt.savefig('plot.png')
     return kp1_matched, kp2_matched
-        
-
-

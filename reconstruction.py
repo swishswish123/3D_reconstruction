@@ -420,7 +420,7 @@ def main():
                                      tracking_method = TRACKING,
                                      matching_method=matching_method,
                                      reconstruction_method=method,
-                                     bundle_adjust=True)
+                                     bundle_adjust=False)
 
 if __name__=='__main__':
     main()
