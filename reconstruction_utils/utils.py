@@ -151,6 +151,24 @@ def extrinsic_matrix_to_vecs(transformation_matrix):
 
 
 def get_projection_matrices(rvec_1, rvec_2, tvec_1, tvec_2, K):
+    """Computes the projection matrices for two cameras given their rotation and translation vectors.
+
+    Given the rotation and translation vectors for two cameras and the intrinsic matrix K, this function computes
+    the projection matrix P for each camera using the formula P = K[R | t], where R is the rotation matrix
+    corresponding to the rotation vector and t is the translation vector. The computed projection matrices can be
+    used to triangulate the 3D position of points in the scene that are visible in both cameras.
+
+    Args:
+        rvec_1 (numpy.ndarray): A 3x1 numpy array containing the rotation vector for camera 1.
+        rvec_2 (numpy.ndarray): A 3x1 numpy array containing the rotation vector for camera 2.
+        tvec_1 (numpy.ndarray): A 3x1 numpy array containing the translation vector for camera 1.
+        tvec_2 (numpy.ndarray): A 3x1 numpy array containing the translation vector for camera 2.
+        K (numpy.ndarray): A 3x3 numpy array containing the intrinsic matrix for both cameras.
+
+    Returns:
+        Tuple[numpy.ndarray, numpy.ndarray]: A tuple containing the projection matrices P0 and P1 for camera 1 and
+        camera 2 respectively.
+    """
     RT0 = extrinsic_vecs_to_matrix(rvec_1, tvec_1)
     P0 = K @ RT0[:3]  # Projection matrix
 
@@ -192,10 +210,11 @@ def img_poses_reformat(im_poses):
 def get_matched_keypoints_superglue(pair_match):
     '''
     function to get keypoints from superglue
-    input:
+
+    Args:
         - pair_match: npz file of image pairs
-    output:
-        - kp1_matched, kp2_matched: np arrays of marched points
+    Returns:
+        kp1_matched, kp2_matched: np arrays of marched points
     '''
     # MATCHES info of the two images
     npz = np.load(pair_match)
@@ -211,6 +230,17 @@ def get_matched_keypoints_superglue(pair_match):
 
 
 def get_matched_keypoints_sift(img1_original, img2_original):
+    """
+    Returns the matched keypoints between two input images using the Scale-Invariant Feature Transform (SIFT) algorithm.
+
+    Args:
+        img1_original (numpy.ndarray): The first input image.
+        img2_original (numpy.ndarray): The second input image.
+
+    Returns:
+        numpy.ndarray: An array of matched keypoints from the first image.
+        numpy.ndarray: An array of matched keypoints from the second image.
+    """
     # Initiate SIFT detector
     sift = cv2.SIFT_create()
     # orb = cv2.ORB_create()
