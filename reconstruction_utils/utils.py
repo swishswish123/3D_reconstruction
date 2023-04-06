@@ -73,8 +73,10 @@ def multiply_points_by_transform(D3_points, T):
     """
     D3_hom = cv2.convertPointsToHomogeneous(D3_points).squeeze()
     D3_transformed_points_hom = T @ D3_hom.T
+    D3_transformed_points_hom = D3_transformed_points_hom.reshape(4, -1)
     D3_transformed = cv2.convertPointsFromHomogeneous(D3_transformed_points_hom.T).squeeze()
-    return D3_transformed
+
+    return D3_transformed.reshape(-1,3)
 
 
 def estimate_camera_poses(kp1_matched, kp2_matched, K, recover_pose_method='opencv', essential_mat_method='opencv'):

@@ -104,7 +104,7 @@ def load_data(data_path, frame_rate=1):
             # Renaming the file
             os.rename(old_pth, new_pth)
     
-    ########################### create pairs info file if it doesn't already exist
+    # ########################## create pairs info file if it doesn't already exist
     if not os.path.isfile(pairs_info):
         if not os.path.isdir(f'{project_path}/assets/pairs_info'):
             os.makedirs(f'{project_path}/assets/pairs_info')
@@ -113,6 +113,7 @@ def load_data(data_path, frame_rate=1):
         f = open(pairs_info,"w+")
         for idx in np.arange(0,len(frames_paths)-1, frame_rate):
             # path of img 1
+            # )))))))) change here
             pth_1 = frames_paths[idx].split('/')[-1]
             #pth_1 = frames_paths[0].split('/')[-1]
             # path of img 2

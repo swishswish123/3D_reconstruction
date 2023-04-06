@@ -34,7 +34,7 @@ def distortion(project_path):
 # ####### RANDOM POINTS
 @pytest.fixture
 def xyz(intrinsics):
-    random_xyz = np.random.randint(low=0, high=[50,100,100], size=(5,3)).astype('float64')
+    random_xyz = np.random.randint(low=0, high=[50,100,100], size=(6,3)).astype('float64')
     xyz = np.array([
         [1,2,3],
         [10,20,30],
@@ -44,7 +44,7 @@ def xyz(intrinsics):
         [10, 57, 80],
     ], dtype='float64')
 
-    return xyz
+    return random_xyz
 
 
 @pytest.fixture

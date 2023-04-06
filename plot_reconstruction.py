@@ -4,6 +4,7 @@ import plotly.graph_objs as go
 from pathlib import Path
 import open3d as o3d
 
+
 def visualise_reconstruction_plotly(reconstruction_output, min_num=-np.inf, max_num=np.inf):
     """
     function used to visualise 3D point clouds that were obtained using reconstruction.
@@ -86,6 +87,7 @@ def visualise_o3d(reconstruction_output):
     o3d.visualization.draw_geometries([img])
     o3d.visualization.draw_geometries([pcd])
 
+
 def main():
     # ######################### PARAMS ###################################
     project_path = Path(__file__).parent.resolve()
@@ -95,25 +97,23 @@ def main():
     method = 'opencv'
     # folder of type of video
     # random / phantom / EM_tracker_calib
-    type = 'aruco'
+    type = 'phantom'
     # folder where image folder located
     # RANDOM, UNDISTORTED: arrow / brain  / checkerboard_test_calibrated / gloves /
     # RANDOM, Distorted: books / points / spinal_section / spinal_section_pink
     # EM_TRACKING_CALIB testing_points /testing_lines
     # RANDOM, UNDISTORTED WITH MAC: mac_camera
     # PHANTOM: surface / right_in / phantom_surface_2 / both_mid / surface_undistorted
-    folder = 'shelves_video'
+    folder = 'phantom_surface_2'
 
-    reconstruction_output = f'{project_path}/reconstructions/{method}/{type}/{folder}'
+    reconstruction_output = f'{project_path}/assets/reconstructions/{method}/{type}/{folder}'
 
     # plot reconstruction
-    visualise_reconstruction_plotly(reconstruction_output, min_num=-100, max_num=100)
+    visualise_reconstruction_plotly(reconstruction_output, max_num=1000, min_num=-1000)
     #visualise_o3d(reconstruction_output)
 
 
-
 if __name__=='__main__':
-    
     main()
 
     # MATPLOTLIB METHOD
